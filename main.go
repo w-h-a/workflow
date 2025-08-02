@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
@@ -25,10 +25,6 @@ func main() {
 	brokerClient := memory.NewBroker()
 
 	w := worker.New(runnerClient, brokerClient)
-
-	if err := w.Subscribe(ctx); err != nil {
-		panic(err)
-	}
 
 	t := task.Task{
 		ID:    strings.ReplaceAll(uuid.NewString(), "-", ""),
@@ -51,9 +47,21 @@ func main() {
 		panic(err)
 	}
 
-	time.Sleep(10 * time.Second)
+	t.State = task.Cancelled
 
-	if err := w.StopTask(ctx, t); err != nil {
+	bs, _ = json.Marshal(t)
+
+	opts = []broker.PublishOption{
+		broker.PublishWithTopic(w.Name()),
+	}
+
+	if err := brokerClient.Publish(ctx, bs, opts...); err != nil {
+		panic(err)
+	}
+
+	slog.InfoContext(ctx, "starting...")
+
+	if err := w.Start(); err != nil {
 		panic(err)
 	}
 }
