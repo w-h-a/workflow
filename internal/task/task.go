@@ -20,22 +20,15 @@ const (
 type State int
 
 type Task struct {
-	ID            string
-	Name          string
-	State         State
-	StartTime     time.Time
-	EndTime       time.Time
-	Image         string
-	CMD           []string
-	Memory        int64
-	Disk          int64
-	Env           []string
-	RestartPolicy string
-}
-
-type TaskEvent struct {
-	ID        string
-	State     State
-	Timestamp time.Time
-	Task      Task
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	State         State     `json:"state"`
+	StartTime     time.Time `json:"startTime"`
+	EndTime       time.Time `json:"endTime"`
+	Image         string    `json:"image"`
+	CMD           []string  `json:"cmd"`
+	Memory        int64     `json:"memory"`
+	Disk          int64     `json:"disk"`
+	Env           []string  `json:"env"`
+	RestartPolicy string    `json:"restartPolicy"`
 }
