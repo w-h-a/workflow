@@ -27,31 +27,6 @@ func NewOptions(opts ...Option) Options {
 	return options
 }
 
-type StopOption func(o *StopOptions)
-
-type StopOptions struct {
-	ID      string
-	Context context.Context
-}
-
-func StopWithID(id string) StopOption {
-	return func(o *StopOptions) {
-		o.ID = id
-	}
-}
-
-func NewStopOptions(opts ...StopOption) StopOptions {
-	options := StopOptions{
-		Context: context.Background(),
-	}
-
-	for _, fn := range opts {
-		fn(&options)
-	}
-
-	return options
-}
-
 type StartOption func(o *StartOptions)
 
 type StartOptions struct {
@@ -102,6 +77,31 @@ func StartWithRestartPolicy(policy string) StartOption {
 
 func NewStartOptions(opts ...StartOption) StartOptions {
 	options := StartOptions{
+		Context: context.Background(),
+	}
+
+	for _, fn := range opts {
+		fn(&options)
+	}
+
+	return options
+}
+
+type StopOption func(o *StopOptions)
+
+type StopOptions struct {
+	ID      string
+	Context context.Context
+}
+
+func StopWithID(id string) StopOption {
+	return func(o *StopOptions) {
+		o.ID = id
+	}
+}
+
+func NewStopOptions(opts ...StopOption) StopOptions {
+	options := StopOptions{
 		Context: context.Background(),
 	}
 
