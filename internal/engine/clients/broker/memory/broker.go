@@ -14,33 +14,38 @@ type memoryBroker struct {
 	mtx     sync.RWMutex
 }
 
-func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.Context, data []byte) error, opts ...broker.SubscribeOption) error {
+func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.Context, data []byte) error, opts ...broker.SubscribeOption) (chan struct{}, error) {
 	options := broker.NewSubscribeOptions(opts...)
 
 	// span
 	slog.InfoContext(ctx, "subscribing to group", "group", options.Group)
+
+	ch := make(chan struct{})
 
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
 	q, ok := b.queues[options.Group]
 	if !ok {
-		q = make(chan []byte)
+		q = make(chan []byte, 10)
 		b.queues[options.Group] = q
 	}
 
 	go func() {
-		ctx := context.Background()
-
-		for data := range q {
-			if err := callback(ctx, data); err != nil {
-				// span
-				slog.ErrorContext(ctx, "failed to process incoming data", "data", data, "error", err)
+		for {
+			select {
+			case <-ch:
+				return
+			case data := <-q:
+				if err := callback(ctx, data); err != nil {
+					// span
+					slog.ErrorContext(ctx, "failed to process incoming data", "data", data, "error", err)
+				}
 			}
 		}
 	}()
 
-	return nil
+	return ch, nil
 }
 
 func (b *memoryBroker) Publish(ctx context.Context, data []byte, opts ...broker.PublishOption) error {
@@ -49,13 +54,13 @@ func (b *memoryBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 	// span
 	slog.InfoContext(ctx, "sending to topic", "data", data, "topic", options.Topic)
 
-	b.mtx.RLock()
-	defer b.mtx.RUnlock()
-
+	b.mtx.Lock()
 	q, ok := b.queues[options.Topic]
 	if !ok {
-		return broker.ErrUnknownTopic
+		q = make(chan []byte, 10)
+		b.queues[options.Topic] = q
 	}
+	b.mtx.Unlock()
 
 	q <- data
 

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/google/uuid"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
@@ -23,23 +26,43 @@ func (s *Service) Name() string {
 	return s.name
 }
 
-func (s *Service) Subscribe(ctx context.Context) error {
+func (s *Service) Start() error {
 	opts := []broker.SubscribeOption{
 		broker.SubscribeWithGroup(s.name),
 	}
 
-	return s.broker.Subscribe(ctx, s.HandleTask, opts...)
+	exit, err := s.broker.Subscribe(context.Background(), s.handleTask, opts...)
+	if err != nil {
+		return err
+	}
+
+	ch := make(chan os.Signal, 1)
+
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	<-ch
+
+	close(exit)
+
+	return nil
 }
 
-func (s *Service) HandleTask(ctx context.Context, data []byte) error {
+func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	var t task.Task
 
 	_ = json.Unmarshal(data, &t)
 
-	return s.StartTask(ctx, t)
+	switch t.State {
+	case task.Pending, task.Scheduled:
+		return s.startTask(ctx, t)
+	case task.Cancelled:
+		return s.stopTask(ctx, t)
+	default:
+		return fmt.Errorf("invalid task state: %v", t.State)
+	}
 }
 
-func (s *Service) StartTask(ctx context.Context, t task.Task) error {
+func (s *Service) startTask(ctx context.Context, t task.Task) error {
 	opts := []runner.StartOption{
 		runner.StartWithID(t.ID),
 		runner.StartWithName(t.Name),
@@ -58,7 +81,7 @@ func (s *Service) StartTask(ctx context.Context, t task.Task) error {
 	return nil
 }
 
-func (s *Service) StopTask(ctx context.Context, t task.Task) error {
+func (s *Service) stopTask(ctx context.Context, t task.Task) error {
 	opts := []runner.StopOption{
 		runner.StopWithID(t.ID),
 	}
