@@ -2,23 +2,40 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strings"
 
+	"github.com/google/uuid"
+	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/task"
 )
 
 type Service struct {
+	name   string
 	runner runner.Runner
-	queue  chan task.Task
+	broker broker.Broker
 }
 
-func (s *Service) EnqueueTask(ctx context.Context, t task.Task) {
-	s.queue <- t
+func (s *Service) Name() string {
+	return s.name
 }
 
-func (s *Service) RunTask(ctx context.Context) error {
-	t := <-s.queue
+func (s *Service) Subscribe(ctx context.Context) error {
+	opts := []broker.SubscribeOption{
+		broker.SubscribeWithGroup(s.name),
+	}
+
+	return s.broker.Subscribe(ctx, s.HandleTask, opts...)
+}
+
+func (s *Service) HandleTask(ctx context.Context, data []byte) error {
+	var t task.Task
+
+	_ = json.Unmarshal(data, &t)
+
 	return s.StartTask(ctx, t)
 }
 
@@ -58,9 +75,12 @@ func (s *Service) StopTask(ctx context.Context, t task.Task) error {
 	return nil
 }
 
-func New(r runner.Runner) *Service {
+func New(r runner.Runner, b broker.Broker) *Service {
+	name := fmt.Sprintf("worker-%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+
 	return &Service{
+		name:   name,
 		runner: r,
-		queue:  make(chan task.Task, 10),
+		broker: b,
 	}
 }
