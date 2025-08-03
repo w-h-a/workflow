@@ -20,16 +20,15 @@ func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.
 	// span
 	slog.InfoContext(ctx, "subscribing to group", "group", options.Group)
 
-	ch := make(chan struct{})
-
 	b.mtx.Lock()
-	defer b.mtx.Unlock()
-
 	q, ok := b.queues[options.Group]
 	if !ok {
 		q = make(chan []byte, 10)
 		b.queues[options.Group] = q
 	}
+	b.mtx.Unlock()
+
+	ch := make(chan struct{})
 
 	go func() {
 		for {
