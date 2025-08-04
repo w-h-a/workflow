@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +15,6 @@ import (
 type Service struct {
 	name   string
 	topics []string
-	mtx    sync.RWMutex
 	broker broker.Broker
 }
 
@@ -25,7 +23,7 @@ func (s *Service) Name() string {
 }
 
 func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, error) {
-	// just a naive implementation for now
+	// just a naive implementation
 	now := time.Now()
 
 	if len(t.ID) == 0 {
@@ -36,12 +34,11 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 
 	bs, _ := json.Marshal(t)
 
-	s.mtx.RLock()
 	var topic string
+
 	if len(s.topics) > 0 {
 		topic = s.topics[0]
 	}
-	s.mtx.RUnlock()
 
 	if len(topic) == 0 {
 		return nil, fmt.Errorf("no topic found")
@@ -64,7 +61,6 @@ func New(topics []string, b broker.Broker) *Service {
 	return &Service{
 		name:   name,
 		topics: topics,
-		mtx:    sync.RWMutex{},
 		broker: b,
 	}
 }
