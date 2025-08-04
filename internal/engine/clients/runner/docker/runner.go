@@ -39,6 +39,7 @@ func (r *dockerRunner) Start(ctx context.Context, opts ...runner.StartOption) er
 
 	cc := container.Config{
 		Image: options.Image,
+		Cmd:   options.Cmd,
 		Env:   options.Env,
 	}
 
@@ -56,7 +57,7 @@ func (r *dockerRunner) Start(ctx context.Context, opts ...runner.StartOption) er
 		PublishAllPorts: true,
 	}
 
-	rsp, err := r.client.ContainerCreate(ctx, &cc, &hc, nil, nil, options.Name)
+	rsp, err := r.client.ContainerCreate(ctx, &cc, &hc, nil, nil, options.ID)
 	if err != nil {
 		// span
 		slog.ErrorContext(ctx, "failed to create container", "image", options.Image, "error", err)
