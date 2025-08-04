@@ -21,8 +21,13 @@ func Factory(
 	brokerClient broker.Broker,
 ) (serverv2.Server, *worker.Service) {
 	// services
-	coordinatorService := coordinator.New(brokerClient)
 	workerService := worker.New(runnerClient, brokerClient)
+	coordinatorService := coordinator.New(
+		[]string{
+			workerService.Name(),
+		},
+		brokerClient,
+	)
 
 	// base server options
 	opts := []serverv2.ServerOption{
