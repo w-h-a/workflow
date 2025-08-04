@@ -2,66 +2,78 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
-	"strings"
+	"sync"
+	"time"
 
-	"github.com/google/uuid"
-	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner/docker"
-	"github.com/w-h-a/workflow/internal/engine/services/worker"
-	"github.com/w-h-a/workflow/internal/task"
+	"github.com/w-h-a/workflow/internal/engine/config"
 )
 
 func main() {
+	// cfg
+	config.New()
+
+	// ctx
 	ctx := context.Background()
 
+	// clients
 	runnerClient := docker.NewRunner(
 		runner.WithHost("unix:///Users/wesleyanderson/.docker/run/docker.sock"),
 	)
 
 	brokerClient := memory.NewBroker()
 
-	w := worker.New(runnerClient, brokerClient)
+	// server + services
+	httpServer, w := engine.Factory(
+		runnerClient,
+		brokerClient,
+	)
 
-	t := task.Task{
-		ID:    strings.ReplaceAll(uuid.NewString(), "-", ""),
-		State: task.Pending,
-		Name:  "test-container-1",
-		Image: "postgres:13",
-		Env: []string{
-			"POSTGRES_USER=user",
-			"POSTGRES_PASSWORD=secret",
-		},
+	// wait group and error chan
+	wg := &sync.WaitGroup{}
+	ch := make(chan error, 2)
+
+	// start worker
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		slog.InfoContext(ctx, "starting worker")
+		ch <- w.Start()
+	}()
+
+	// start http server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		slog.InfoContext(ctx, "starting http server", "address", config.HttpAddress())
+		ch <- httpServer.Start()
+	}()
+
+	// block
+	err := <-ch
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to start", "error", err)
+		return
 	}
 
-	bs, _ := json.Marshal(t)
+	// graceful shutdown
+	slog.InfoContext(ctx, "stopping...")
 
-	opts := []broker.PublishOption{
-		broker.PublishWithTopic(w.Name()),
+	wait := make(chan struct{})
+
+	go func() {
+		defer close(wait)
+		wg.Wait()
+	}()
+
+	select {
+	case <-wait:
+	case <-time.After(30 * time.Second):
 	}
 
-	if err := brokerClient.Publish(ctx, bs, opts...); err != nil {
-		panic(err)
-	}
-
-	t.State = task.Cancelled
-
-	bs, _ = json.Marshal(t)
-
-	opts = []broker.PublishOption{
-		broker.PublishWithTopic(w.Name()),
-	}
-
-	if err := brokerClient.Publish(ctx, bs, opts...); err != nil {
-		panic(err)
-	}
-
-	slog.InfoContext(ctx, "starting...")
-
-	if err := w.Start(); err != nil {
-		panic(err)
-	}
+	slog.InfoContext(ctx, "successfully stopped")
 }
