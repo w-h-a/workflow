@@ -1,16 +1,27 @@
 package coordinator
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
-	"github.com/w-h-a/workflow/internal/task"
+	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 )
 
-// Coordinator is responsible for accepting tasks from clients,
-// scheduling tasks for workers, and for exposing the cluster's state.
 type Service struct {
-	// broker
-	taskCache     map[string][]task.Task
-	workers       []string
-	workerToTasks map[string][]uuid.UUID
-	taskToWorker  map[uuid.UUID]string
+	name   string
+	broker broker.Broker
+}
+
+func (s *Service) Name() string {
+	return s.name
+}
+
+func New(b broker.Broker) *Service {
+	name := fmt.Sprintf("worker-%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+
+	return &Service{
+		name:   name,
+		broker: b,
+	}
 }

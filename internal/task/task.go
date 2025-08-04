@@ -1,31 +1,15 @@
 package task
 
-import (
-	"time"
-)
+import "encoding/json"
 
-type State string
+func Factory(bs []byte) (*Task, error) {
+	var t *Task
 
-const (
-	Pending   State = "PENDING"
-	Scheduled State = "SCHEDULED"
-	Running   State = "RUNNING"
-	Cancelled State = "CANCELLED"
-	Stopped   State = "STOPPED"
-	Completed State = "COMPLETED"
-	Failed    State = "FAILED"
-)
+	if err := json.Unmarshal(bs, &t); err != nil {
+		return nil, err
+	}
 
-type Task struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	State         State     `json:"state"`
-	StartTime     time.Time `json:"startTime"`
-	EndTime       time.Time `json:"endTime"`
-	Image         string    `json:"image"`
-	CMD           []string  `json:"cmd"`
-	Memory        int64     `json:"memory"`
-	Disk          int64     `json:"disk"`
-	Env           []string  `json:"env"`
-	RestartPolicy string    `json:"restartPolicy"`
+	// TODO: validate that we have what is required
+
+	return t, nil
 }
