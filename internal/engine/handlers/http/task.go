@@ -1,7 +1,6 @@
 package http
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
@@ -21,8 +20,13 @@ func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.InfoContext(ctx, "ready to process task", "task", *task)
-	// TODO
+	scheduled, err := t.coordinatorService.ScheduleTask(ctx, task)
+	if err != nil {
+		wrtRsp(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+
+	wrtRsp(w, http.StatusOK, scheduled)
 }
 
 func NewTaskHandler(coordinatorService *coordinator.Service) *Task {
