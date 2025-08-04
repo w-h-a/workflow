@@ -18,10 +18,9 @@ const (
 
 type Task struct {
 	ID            string     `json:"id"`
-	Name          string     `json:"name"`
 	State         State      `json:"state"`
 	Image         string     `json:"image"`
-	CMD           []string   `json:"cmd,omitempty"`
+	Cmd           []string   `json:"cmd,omitempty"`
 	Env           []string   `json:"env,omitempty"`
 	Memory        int64      `json:"memory,omitempty"`
 	Disk          int64      `json:"disk,omitempty"`

@@ -65,10 +65,10 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 func (s *Service) startTask(ctx context.Context, t task.Task) error {
 	opts := []runner.StartOption{
 		runner.StartWithID(t.ID),
-		runner.StartWithName(t.Name),
 		runner.StartWithImage(t.Image),
-		runner.StartWithMemory(t.Memory),
+		runner.StartWithCmd(t.Cmd),
 		runner.StartWithEnv(t.Env),
+		runner.StartWithMemory(t.Memory),
 		runner.StartWithRestartPolicy(t.RestartPolicy),
 	}
 

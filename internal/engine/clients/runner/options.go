@@ -31,10 +31,10 @@ type StartOption func(o *StartOptions)
 
 type StartOptions struct {
 	ID            string
-	Name          string
 	Image         string
-	Memory        int64
+	Cmd           []string
 	Env           []string
+	Memory        int64
 	RestartPolicy string
 	Context       context.Context
 }
@@ -45,27 +45,27 @@ func StartWithID(id string) StartOption {
 	}
 }
 
-func StartWithName(name string) StartOption {
-	return func(o *StartOptions) {
-		o.Name = name
-	}
-}
-
 func StartWithImage(image string) StartOption {
 	return func(o *StartOptions) {
 		o.Image = image
 	}
 }
 
-func StartWithMemory(memory int64) StartOption {
+func StartWithCmd(cmd []string) StartOption {
 	return func(o *StartOptions) {
-		o.Memory = memory
+		o.Cmd = cmd
 	}
 }
 
 func StartWithEnv(env []string) StartOption {
 	return func(o *StartOptions) {
 		o.Env = env
+	}
+}
+
+func StartWithMemory(memory int64) StartOption {
+	return func(o *StartOptions) {
+		o.Memory = memory
 	}
 }
 
