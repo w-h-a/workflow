@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/w-h-a/workflow/internal/engine"
-	"github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
+	memorybroker "github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
+	memoryreadwriter "github.com/w-h-a/workflow/internal/engine/clients/readwriter/memory"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner/docker"
 	"github.com/w-h-a/workflow/internal/engine/config"
@@ -25,12 +26,15 @@ func main() {
 		runner.WithHost("unix:///Users/wesleyanderson/.docker/run/docker.sock"),
 	)
 
-	brokerClient := memory.NewBroker()
+	brokerClient := memorybroker.NewBroker()
+
+	readwriterClient := memoryreadwriter.NewReadWriter()
 
 	// server + services
 	httpServer, c, w := engine.Factory(
 		runnerClient,
 		brokerClient,
+		readwriterClient,
 	)
 
 	// wait group and error chan

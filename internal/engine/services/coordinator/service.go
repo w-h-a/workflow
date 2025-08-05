@@ -12,11 +12,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/task"
 )
 
 type Service struct {
-	broker broker.Broker
+	broker     broker.Broker
+	readwriter readwriter.ReadWriter
 }
 
 func (s *Service) Start() error {
@@ -90,8 +92,9 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	return nil
 }
 
-func New(b broker.Broker) *Service {
+func New(b broker.Broker, rw readwriter.ReadWriter) *Service {
 	return &Service{
-		broker: b,
+		broker:     b,
+		readwriter: rw,
 	}
 }
