@@ -7,6 +7,7 @@ import (
 	"github.com/w-h-a/pkg/serverv2"
 	httpserver "github.com/w-h-a/pkg/serverv2/http"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/config"
 	httphandlers "github.com/w-h-a/workflow/internal/engine/handlers/http"
@@ -19,9 +20,10 @@ import (
 func Factory(
 	runnerClient runner.Runner,
 	brokerClient broker.Broker,
+	readwriterClient readwriter.ReadWriter,
 ) (serverv2.Server, *coordinator.Service, *worker.Service) {
 	// services
-	coordinatorService := coordinator.New(brokerClient)
+	coordinatorService := coordinator.New(brokerClient, readwriterClient)
 	workerService := worker.New(runnerClient, brokerClient)
 
 	// base server options
