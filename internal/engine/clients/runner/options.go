@@ -86,28 +86,3 @@ func NewRunOptions(opts ...RunOption) RunOptions {
 
 	return options
 }
-
-type StopOption func(o *StopOptions)
-
-type StopOptions struct {
-	ID      string
-	Context context.Context
-}
-
-func StopWithID(id string) StopOption {
-	return func(o *StopOptions) {
-		o.ID = id
-	}
-}
-
-func NewStopOptions(opts ...StopOption) StopOptions {
-	options := StopOptions{
-		Context: context.Background(),
-	}
-
-	for _, fn := range opts {
-		fn(&options)
-	}
-
-	return options
-}

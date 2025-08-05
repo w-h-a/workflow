@@ -65,6 +65,13 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		return "", err
 	}
 
+	defer func() {
+		if err := r.remove(ctx, options.ID); err != nil {
+			// span
+			slog.ErrorContext(ctx, "failed to remove container", "containerID", rsp.ID, "error", err)
+		}
+	}()
+
 	r.mtx.Lock()
 	r.tasks[options.ID] = rsp.ID
 	r.mtx.Unlock()
@@ -107,19 +114,18 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 	return buf.String(), nil
 }
 
-func (r *dockerRunner) Stop(ctx context.Context, opts ...runner.StopOption) error {
-	options := runner.NewStopOptions(opts...)
-
-	r.mtx.RLock()
-	containerID, ok := r.tasks[options.ID]
-	r.mtx.RUnlock()
-
+func (r *dockerRunner) remove(ctx context.Context, id string) error {
+	r.mtx.Lock()
+	containerID, ok := r.tasks[id]
 	if !ok {
+		r.mtx.Unlock()
 		return nil
 	}
+	delete(r.tasks, id)
+	r.mtx.Unlock()
 
 	// span
-	slog.InfoContext(ctx, "attempting to stop and remove container", "containerID", containerID)
+	slog.InfoContext(ctx, "attempting to remove container", "containerID", containerID)
 
 	if err := r.client.ContainerRemove(ctx, containerID, container.RemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: true}); err != nil {
 		// span
