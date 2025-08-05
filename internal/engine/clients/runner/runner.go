@@ -10,5 +10,4 @@ const (
 
 type Runner interface {
 	Run(ctx context.Context, opts ...RunOption) (string, error)
-	Stop(ctx context.Context, opts ...StopOption) error
 }
