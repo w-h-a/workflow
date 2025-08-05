@@ -7,9 +7,8 @@ import (
 type State string
 
 const (
-	Pending   State = "PENDING"
 	Scheduled State = "SCHEDULED"
-	Running   State = "RUNNING"
+	Started   State = "STARTED"
 	Cancelled State = "CANCELLED"
 	Stopped   State = "STOPPED"
 	Completed State = "COMPLETED"

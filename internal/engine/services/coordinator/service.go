@@ -64,13 +64,13 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 	now := time.Now()
 
 	t.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
-	t.State = task.Pending
+	t.State = task.Scheduled
 	t.ScheduledAt = &now
 
 	bs, _ := json.Marshal(t)
 
 	opts := []broker.PublishOption{
-		broker.PublishWithQueue(broker.PENDING),
+		broker.PublishWithQueue(broker.SCHEDULED),
 	}
 
 	if err := s.broker.Publish(ctx, bs, opts...); err != nil {

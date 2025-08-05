@@ -20,7 +20,7 @@ type Service struct {
 
 func (s *Service) Start() error {
 	opts := []broker.SubscribeOption{
-		broker.SubscribeWithQueue(broker.PENDING),
+		broker.SubscribeWithQueue(broker.SCHEDULED),
 	}
 
 	exit, err := s.broker.Subscribe(context.Background(), s.handleTask, opts...)
@@ -46,7 +46,7 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 
 	started := time.Now()
 
-	t.State = task.Running
+	t.State = task.Started
 	t.StartedAt = &started
 
 	startedBs, _ := json.Marshal(t)

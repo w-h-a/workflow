@@ -1,7 +1,7 @@
 package broker
 
 const (
-	PENDING   = "pending"
+	SCHEDULED = "scheduled"
 	STARTED   = "started"
 	COMPLETED = "completed"
 	FAILED    = "failed"
