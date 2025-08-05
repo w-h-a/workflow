@@ -27,14 +27,14 @@ func NewOptions(opts ...Option) Options {
 	return options
 }
 
-type ReadByKeyOption func(o *ReadByKeyOptions)
+type ReadByIdOption func(o *ReadByIdOptions)
 
-type ReadByKeyOptions struct {
+type ReadByIdOptions struct {
 	Context context.Context
 }
 
-func NewReadByKeyOptions(opts ...ReadByKeyOption) ReadByKeyOptions {
-	options := ReadByKeyOptions{
+func NewReadByIdOptions(opts ...ReadByIdOption) ReadByIdOptions {
+	options := ReadByIdOptions{
 		Context: context.Background(),
 	}
 

@@ -3,7 +3,7 @@ package coordinator
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
+	"errors"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/reader"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/task"
 )
@@ -62,6 +63,17 @@ func (s *Service) Start() error {
 	return nil
 }
 
+func (s *Service) RetrieveTask(ctx context.Context, id string) (*task.Task, error) {
+	bs, err := s.readwriter.ReadById(ctx, id)
+	if err != nil && errors.Is(err, reader.ErrNotFound) {
+		return nil, task.ErrTaskNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	return task.Factory(bs)
+}
+
 func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, error) {
 	now := time.Now()
 
@@ -79,15 +91,19 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 		return nil, err
 	}
 
+	if err := s.readwriter.Write(ctx, t.ID, bs); err != nil {
+		return nil, err
+	}
+
 	return t, nil
 }
 
 func (s *Service) handleTask(ctx context.Context, data []byte) error {
-	var t *task.Task
+	t, _ := task.Factory(data)
 
-	_ = json.Unmarshal(data, &t)
-
-	slog.InfoContext(ctx, "received task", "task", *t)
+	if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+		return err
+	}
 
 	return nil
 }
