@@ -40,9 +40,7 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) handleTask(ctx context.Context, data []byte) error {
-	var t *task.Task
-
-	_ = json.Unmarshal(data, &t)
+	t, _ := task.Factory(data)
 
 	started := time.Now()
 

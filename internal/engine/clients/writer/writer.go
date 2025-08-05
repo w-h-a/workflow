@@ -3,5 +3,5 @@ package writer
 import "context"
 
 type Writer interface {
-	Write(ctx context.Context, key string, data []byte, opts ...WriteOption) error
+	Write(ctx context.Context, id string, data []byte, opts ...WriteOption) error
 }

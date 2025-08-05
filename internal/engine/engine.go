@@ -37,11 +37,10 @@ func Factory(
 	router := mux.NewRouter()
 
 	httpStatus := httphandlers.NewStatusHandler()
-
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
 	httpTask := httphandlers.NewTaskHandler(coordinatorService)
-
+	router.Methods(http.MethodGet).Path("/task/{id}").HandlerFunc(httpTask.GetOneTask)
 	router.Methods(http.MethodPost).Path("/task").HandlerFunc(httpTask.PostTask)
 
 	// create http server

@@ -15,11 +15,11 @@ type memoryReadWriter struct {
 	mtx     sync.RWMutex
 }
 
-func (rw *memoryReadWriter) ReadByKey(ctx context.Context, key string, opts ...reader.ReadByKeyOption) ([]byte, error) {
+func (rw *memoryReadWriter) ReadById(ctx context.Context, id string, opts ...reader.ReadByIdOption) ([]byte, error) {
 	rw.mtx.RLock()
 	defer rw.mtx.RUnlock()
 
-	data, ok := rw.store[key]
+	data, ok := rw.store[id]
 	if !ok {
 		return nil, reader.ErrNotFound
 	}
@@ -27,11 +27,11 @@ func (rw *memoryReadWriter) ReadByKey(ctx context.Context, key string, opts ...r
 	return append([]byte{}, data...), nil
 }
 
-func (rw *memoryReadWriter) Write(ctx context.Context, key string, data []byte, opts ...writer.WriteOption) error {
+func (rw *memoryReadWriter) Write(ctx context.Context, id string, data []byte, opts ...writer.WriteOption) error {
 	rw.mtx.Lock()
 	defer rw.mtx.Unlock()
 
-	rw.store[key] = append([]byte{}, data...)
+	rw.store[id] = append([]byte{}, data...)
 
 	return nil
 }
