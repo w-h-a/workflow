@@ -19,15 +19,10 @@ import (
 func Factory(
 	runnerClient runner.Runner,
 	brokerClient broker.Broker,
-) (serverv2.Server, *worker.Service) {
+) (serverv2.Server, *coordinator.Service, *worker.Service) {
 	// services
+	coordinatorService := coordinator.New(brokerClient)
 	workerService := worker.New(runnerClient, brokerClient)
-	coordinatorService := coordinator.New(
-		[]string{
-			workerService.Name(),
-		},
-		brokerClient,
-	)
 
 	// base server options
 	opts := []serverv2.ServerOption{
@@ -67,5 +62,5 @@ func Factory(
 
 	httpServer.Handle(handler)
 
-	return httpServer, workerService
+	return httpServer, coordinatorService, workerService
 }

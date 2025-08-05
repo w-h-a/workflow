@@ -3,8 +3,11 @@ package coordinator
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,39 +16,61 @@ import (
 )
 
 type Service struct {
-	name   string
-	topics []string
 	broker broker.Broker
 }
 
-func (s *Service) Name() string {
-	return s.name
+func (s *Service) Start() error {
+	startedOpts := []broker.SubscribeOption{
+		broker.SubscribeWithQueue(broker.STARTED),
+	}
+
+	started, err := s.broker.Subscribe(context.Background(), s.handleTask, startedOpts...)
+	if err != nil {
+		return err
+	}
+
+	completedOpts := []broker.SubscribeOption{
+		broker.SubscribeWithQueue(broker.COMPLETED),
+	}
+
+	completed, err := s.broker.Subscribe(context.Background(), s.handleTask, completedOpts...)
+	if err != nil {
+		return err
+	}
+
+	failedOpts := []broker.SubscribeOption{
+		broker.SubscribeWithQueue(broker.FAILED),
+	}
+
+	failed, err := s.broker.Subscribe(context.Background(), s.handleTask, failedOpts...)
+	if err != nil {
+		return err
+	}
+
+	ch := make(chan os.Signal, 1)
+
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	<-ch
+
+	close(started)
+	close(completed)
+	close(failed)
+
+	return nil
 }
 
 func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, error) {
-	// just a naive implementation
 	now := time.Now()
 
-	if len(t.ID) == 0 {
-		t.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
-		t.State = task.Scheduled
-		t.ScheduledAt = &now
-	}
+	t.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
+	t.State = task.Pending
+	t.ScheduledAt = &now
 
 	bs, _ := json.Marshal(t)
 
-	var topic string
-
-	if len(s.topics) > 0 {
-		topic = s.topics[0]
-	}
-
-	if len(topic) == 0 {
-		return nil, fmt.Errorf("no topic found")
-	}
-
 	opts := []broker.PublishOption{
-		broker.PublishWithTopic(topic),
+		broker.PublishWithQueue(broker.PENDING),
 	}
 
 	if err := s.broker.Publish(ctx, bs, opts...); err != nil {
@@ -55,12 +80,18 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 	return t, nil
 }
 
-func New(topics []string, b broker.Broker) *Service {
-	name := fmt.Sprintf("coordinator-%s", strings.ReplaceAll(uuid.NewString(), "-", ""))
+func (s *Service) handleTask(ctx context.Context, data []byte) error {
+	var t *task.Task
 
+	_ = json.Unmarshal(data, &t)
+
+	slog.InfoContext(ctx, "received task", "task", *t)
+
+	return nil
+}
+
+func New(b broker.Broker) *Service {
 	return &Service{
-		name:   name,
-		topics: topics,
 		broker: b,
 	}
 }

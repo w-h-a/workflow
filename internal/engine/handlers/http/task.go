@@ -7,8 +7,8 @@ import (
 )
 
 type Task struct {
-	parser             *Parser
-	coordinatorService *coordinator.Service
+	parser      *Parser
+	coordinator *coordinator.Service
 }
 
 func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
@@ -20,7 +20,7 @@ func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scheduled, err := t.coordinatorService.ScheduleTask(ctx, task)
+	scheduled, err := t.coordinator.ScheduleTask(ctx, task)
 	if err != nil {
 		wrtRsp(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
@@ -31,7 +31,7 @@ func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
 
 func NewTaskHandler(coordinatorService *coordinator.Service) *Task {
 	return &Task{
-		parser:             &Parser{},
-		coordinatorService: coordinatorService,
+		parser:      &Parser{},
+		coordinator: coordinatorService,
 	}
 }

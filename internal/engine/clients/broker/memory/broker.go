@@ -18,13 +18,13 @@ func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.
 	options := broker.NewSubscribeOptions(opts...)
 
 	// span
-	slog.InfoContext(ctx, "subscribing to group", "group", options.Group)
+	slog.InfoContext(ctx, "subscribing to queue", "queue", options.Queue)
 
 	b.mtx.Lock()
-	q, ok := b.queues[options.Group]
+	q, ok := b.queues[options.Queue]
 	if !ok {
 		q = make(chan []byte, 10)
-		b.queues[options.Group] = q
+		b.queues[options.Queue] = q
 	}
 	b.mtx.Unlock()
 
@@ -51,13 +51,13 @@ func (b *memoryBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 	options := broker.NewPublishOptions(opts...)
 
 	// span
-	slog.InfoContext(ctx, "sending to topic", "data", data, "topic", options.Topic)
+	slog.InfoContext(ctx, "publishing to queue", "data", data, "queue", options.Queue)
 
 	b.mtx.Lock()
-	q, ok := b.queues[options.Topic]
+	q, ok := b.queues[options.Queue]
 	if !ok {
 		q = make(chan []byte, 10)
-		b.queues[options.Topic] = q
+		b.queues[options.Queue] = q
 	}
 	b.mtx.Unlock()
 

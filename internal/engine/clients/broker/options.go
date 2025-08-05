@@ -23,13 +23,13 @@ func NewOptions(opts ...Option) Options {
 type PublishOption func(o *PublishOptions)
 
 type PublishOptions struct {
-	Topic   string
+	Queue   string
 	Context context.Context
 }
 
-func PublishWithTopic(topic string) PublishOption {
+func PublishWithQueue(queue string) PublishOption {
 	return func(o *PublishOptions) {
-		o.Topic = topic
+		o.Queue = queue
 	}
 }
 
@@ -48,14 +48,13 @@ func NewPublishOptions(opts ...PublishOption) PublishOptions {
 type SubscribeOption func(o *SubscribeOptions)
 
 type SubscribeOptions struct {
-	// Topic => Group is one:many (think sns and sqs where there is more than one sqs subscriber to an sns topic)
-	Group   string
+	Queue   string
 	Context context.Context
 }
 
-func SubscribeWithGroup(group string) SubscribeOption {
+func SubscribeWithQueue(queue string) SubscribeOption {
 	return func(o *SubscribeOptions) {
-		o.Group = group
+		o.Queue = queue
 	}
 }
 

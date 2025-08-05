@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
@@ -21,8 +22,8 @@ type dockerRunner struct {
 	mtx     sync.RWMutex
 }
 
-func (r *dockerRunner) Start(ctx context.Context, opts ...runner.StartOption) error {
-	options := runner.NewStartOptions(opts...)
+func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (string, error) {
+	options := runner.NewRunOptions(opts...)
 
 	// TODO: validate the options for docker
 
@@ -30,11 +31,11 @@ func (r *dockerRunner) Start(ctx context.Context, opts ...runner.StartOption) er
 	if err != nil {
 		// span
 		slog.ErrorContext(ctx, "failed to pull image", "image", options.Image, "error", err)
-		return err
+		return "", err
 	}
 
 	if _, err := io.Copy(os.Stdout, reader); err != nil {
-		return err
+		return "", err
 	}
 
 	cc := container.Config{
@@ -61,27 +62,49 @@ func (r *dockerRunner) Start(ctx context.Context, opts ...runner.StartOption) er
 	if err != nil {
 		// span
 		slog.ErrorContext(ctx, "failed to create container", "image", options.Image, "error", err)
-		return err
-	}
-
-	if err := r.client.ContainerStart(ctx, rsp.ID, container.StartOptions{}); err != nil {
-		return err
-	}
-
-	out, err := r.client.ContainerLogs(ctx, rsp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
-	if err != nil {
-		return err
-	}
-
-	if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, out); err != nil {
-		return err
+		return "", err
 	}
 
 	r.mtx.Lock()
 	r.tasks[options.ID] = rsp.ID
 	r.mtx.Unlock()
 
-	return nil
+	if err := r.client.ContainerStart(ctx, rsp.ID, container.StartOptions{}); err != nil {
+		return "", err
+	}
+
+	out, err := r.client.ContainerLogs(ctx, rsp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
+	if err != nil {
+		return "", err
+	}
+
+	defer func() {
+		if err := out.Close(); err != nil {
+			// span
+			slog.ErrorContext(ctx, "failed to close stdout on container", "containerID", rsp.ID)
+		}
+	}()
+
+	lr := &io.LimitedReader{R: out, N: 1024}
+	buf := &strings.Builder{}
+
+	if _, err := stdcopy.StdCopy(buf, buf, lr); err != nil {
+		return "", err
+	}
+
+	statusCh, errCh := r.client.ContainerWait(ctx, rsp.ID, container.WaitConditionNotRunning)
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return "", err
+		}
+	case status := <-statusCh:
+		// span
+		slog.InfoContext(ctx, "done waiting for container", "containerID", rsp.ID, "status", status.StatusCode)
+	}
+
+	return buf.String(), nil
 }
 
 func (r *dockerRunner) Stop(ctx context.Context, opts ...runner.StopOption) error {
@@ -96,14 +119,9 @@ func (r *dockerRunner) Stop(ctx context.Context, opts ...runner.StopOption) erro
 	}
 
 	// span
-	slog.InfoContext(ctx, "attempting to stop container", "containerID", containerID)
+	slog.InfoContext(ctx, "attempting to stop and remove container", "containerID", containerID)
 
-	if err := r.client.ContainerStop(ctx, containerID, container.StopOptions{}); err != nil {
-		// span
-		return err
-	}
-
-	if err := r.client.ContainerRemove(ctx, containerID, container.RemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: false}); err != nil {
+	if err := r.client.ContainerRemove(ctx, containerID, container.RemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: true}); err != nil {
 		// span
 		return err
 	}
