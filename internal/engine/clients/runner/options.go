@@ -27,9 +27,9 @@ func NewOptions(opts ...Option) Options {
 	return options
 }
 
-type StartOption func(o *StartOptions)
+type RunOption func(o *RunOptions)
 
-type StartOptions struct {
+type RunOptions struct {
 	ID            string
 	Image         string
 	Cmd           []string
@@ -39,44 +39,44 @@ type StartOptions struct {
 	Context       context.Context
 }
 
-func StartWithID(id string) StartOption {
-	return func(o *StartOptions) {
+func RunWithID(id string) RunOption {
+	return func(o *RunOptions) {
 		o.ID = id
 	}
 }
 
-func StartWithImage(image string) StartOption {
-	return func(o *StartOptions) {
+func RunWithImage(image string) RunOption {
+	return func(o *RunOptions) {
 		o.Image = image
 	}
 }
 
-func StartWithCmd(cmd []string) StartOption {
-	return func(o *StartOptions) {
+func RunWithCmd(cmd []string) RunOption {
+	return func(o *RunOptions) {
 		o.Cmd = cmd
 	}
 }
 
-func StartWithEnv(env []string) StartOption {
-	return func(o *StartOptions) {
+func RunWithEnv(env []string) RunOption {
+	return func(o *RunOptions) {
 		o.Env = env
 	}
 }
 
-func StartWithMemory(memory int64) StartOption {
-	return func(o *StartOptions) {
+func RunWithMemory(memory int64) RunOption {
+	return func(o *RunOptions) {
 		o.Memory = memory
 	}
 }
 
-func StartWithRestartPolicy(policy string) StartOption {
-	return func(o *StartOptions) {
+func RunWithRestartPolicy(policy string) RunOption {
+	return func(o *RunOptions) {
 		o.RestartPolicy = policy
 	}
 }
 
-func NewStartOptions(opts ...StartOption) StartOptions {
-	options := StartOptions{
+func NewRunOptions(opts ...RunOption) RunOptions {
+	options := RunOptions{
 		Context: context.Background(),
 	}
 

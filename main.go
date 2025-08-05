@@ -28,14 +28,14 @@ func main() {
 	brokerClient := memory.NewBroker()
 
 	// server + services
-	httpServer, w := engine.Factory(
+	httpServer, c, w := engine.Factory(
 		runnerClient,
 		brokerClient,
 	)
 
 	// wait group and error chan
 	wg := &sync.WaitGroup{}
-	ch := make(chan error, 2)
+	ch := make(chan error, 3)
 
 	// start worker
 	wg.Add(1)
@@ -43,6 +43,14 @@ func main() {
 		defer wg.Done()
 		slog.InfoContext(ctx, "starting worker")
 		ch <- w.Start()
+	}()
+
+	// start coordinator
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		slog.InfoContext(ctx, "starting coordinator")
+		ch <- c.Start()
 	}()
 
 	// start http server

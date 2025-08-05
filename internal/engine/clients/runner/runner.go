@@ -9,6 +9,6 @@ const (
 )
 
 type Runner interface {
-	Start(ctx context.Context, opts ...StartOption) error
+	Run(ctx context.Context, opts ...RunOption) (string, error)
 	Stop(ctx context.Context, opts ...StopOption) error
 }
