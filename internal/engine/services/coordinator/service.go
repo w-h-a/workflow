@@ -4,10 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,7 +19,7 @@ type Service struct {
 	readwriter readwriter.ReadWriter
 }
 
-func (s *Service) Start() error {
+func (s *Service) Start(ch chan struct{}) error {
 	startedOpts := []broker.SubscribeOption{
 		broker.SubscribeWithQueue(broker.STARTED),
 	}
@@ -49,10 +46,6 @@ func (s *Service) Start() error {
 	if err != nil {
 		return err
 	}
-
-	ch := make(chan os.Signal, 1)
-
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
 	<-ch
 

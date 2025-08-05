@@ -3,9 +3,6 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
@@ -18,7 +15,7 @@ type Service struct {
 	broker broker.Broker
 }
 
-func (s *Service) Start() error {
+func (s *Service) Start(ch chan struct{}) error {
 	opts := []broker.SubscribeOption{
 		broker.SubscribeWithQueue(broker.SCHEDULED),
 	}
@@ -27,10 +24,6 @@ func (s *Service) Start() error {
 	if err != nil {
 		return err
 	}
-
-	ch := make(chan os.Signal, 1)
-
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
 	<-ch
 
