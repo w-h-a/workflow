@@ -3,8 +3,12 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/task"
@@ -50,6 +54,64 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 		return err
 	}
 
+	var vs []string
+
+	for _, v := range t.Volumes {
+		volName := strings.ReplaceAll(uuid.NewString(), "-", "")
+		opts := []runner.CreateVolumeOption{
+			runner.CreateVolumeWithName(volName),
+		}
+		if err := s.runner.CreateVolume(ctx, opts...); err != nil {
+			return err
+		}
+		defer func() {
+			opts := []runner.DeleteVolumeOption{
+				runner.DeleteVolumeWithName(volName),
+			}
+			if err := s.runner.DeleteVolume(ctx, opts...); err != nil {
+				// span
+				slog.ErrorContext(ctx, "failed to delete volume", "name", volName)
+			}
+		}()
+		vs = append(vs, fmt.Sprintf("%s:%s", volName, v))
+	}
+
+	t.Volumes = vs
+
+	for _, pre := range t.Pre {
+		pre.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
+		pre.Volumes = t.Volumes
+		runOpts := []runner.RunOption{
+			runner.RunWithID(pre.ID),
+			runner.RunWithImage(pre.Image),
+			runner.RunWithCmd(pre.Cmd),
+			runner.RunWithEnv(pre.Env),
+			runner.RunWithMemory(pre.Memory),
+			runner.RunWithRestartPolicy(pre.RestartPolicy),
+			runner.RunWithVolumes(pre.Volumes),
+		}
+		result, err := s.runner.Run(ctx, runOpts...)
+		finished := time.Now()
+		if err != nil {
+			t.Error = err.Error()
+			t.State = task.Failed
+			t.FailedAt = &finished
+
+			failedBs, _ := json.Marshal(t)
+
+			failedOpts := []broker.PublishOption{
+				broker.PublishWithQueue(broker.FAILED),
+			}
+
+			if err := s.broker.Publish(ctx, failedBs, failedOpts...); err != nil {
+				return err
+			}
+
+			return nil
+		}
+		pre.Result = result
+	}
+
 	runOpts := []runner.RunOption{
 		runner.RunWithID(t.ID),
 		runner.RunWithImage(t.Image),
@@ -57,6 +119,7 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 		runner.RunWithEnv(t.Env),
 		runner.RunWithMemory(t.Memory),
 		runner.RunWithRestartPolicy(t.RestartPolicy),
+		runner.RunWithVolumes(t.Volumes),
 	}
 
 	result, err := s.runner.Run(ctx, runOpts...)
@@ -77,6 +140,40 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 		}
 
 		return nil
+	}
+
+	for _, post := range t.Post {
+		post.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
+		post.Volumes = t.Volumes
+		runOpts := []runner.RunOption{
+			runner.RunWithID(post.ID),
+			runner.RunWithImage(post.Image),
+			runner.RunWithCmd(post.Cmd),
+			runner.RunWithEnv(post.Env),
+			runner.RunWithMemory(post.Memory),
+			runner.RunWithRestartPolicy(post.RestartPolicy),
+			runner.RunWithVolumes(post.Volumes),
+		}
+		result, err := s.runner.Run(ctx, runOpts...)
+		finished := time.Now()
+		if err != nil {
+			t.Error = err.Error()
+			t.State = task.Failed
+			t.FailedAt = &finished
+
+			failedBs, _ := json.Marshal(t)
+
+			failedOpts := []broker.PublishOption{
+				broker.PublishWithQueue(broker.FAILED),
+			}
+
+			if err := s.broker.Publish(ctx, failedBs, failedOpts...); err != nil {
+				return err
+			}
+
+			return nil
+		}
+		post.Result = result
 	}
 
 	t.Result = result

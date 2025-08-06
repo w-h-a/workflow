@@ -58,7 +58,7 @@ func (s *Service) Start(ch chan struct{}) error {
 
 func (s *Service) RetrieveTask(ctx context.Context, id string) (*task.Task, error) {
 	bs, err := s.readwriter.ReadById(ctx, id)
-	if err != nil && errors.Is(err, reader.ErrNotFound) {
+	if err != nil && errors.Is(err, reader.ErrRecordNotFound) {
 		return nil, task.ErrTaskNotFound
 	} else if err != nil {
 		return nil, err

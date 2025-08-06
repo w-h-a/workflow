@@ -21,7 +21,7 @@ func (rw *memoryReadWriter) ReadById(ctx context.Context, id string, opts ...rea
 
 	data, ok := rw.store[id]
 	if !ok {
-		return nil, reader.ErrNotFound
+		return nil, reader.ErrRecordNotFound
 	}
 
 	return append([]byte{}, data...), nil
