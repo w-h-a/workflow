@@ -51,7 +51,6 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 
 	for _, v := range options.Volumes {
 		vol := strings.Split(v, ":")
-		// TODO: this is something that should validated long before this
 		if len(vol) != 2 {
 			return "", runner.ErrInvalidVolumeName
 		}
