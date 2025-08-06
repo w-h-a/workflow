@@ -10,4 +10,6 @@ const (
 
 type Runner interface {
 	Run(ctx context.Context, opts ...RunOption) (string, error)
+	CreateVolume(ctx context.Context, opts ...CreateVolumeOption) error
+	DeleteVolume(ctx context.Context, opts ...DeleteVolumeOption) error
 }

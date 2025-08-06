@@ -9,7 +9,10 @@ import (
 	"sync"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
@@ -44,6 +47,22 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		Env:   options.Env,
 	}
 
+	var mounts []mount.Mount
+
+	for _, v := range options.Volumes {
+		vol := strings.Split(v, ":")
+		// TODO: this is something that should validated long before this
+		if len(vol) != 2 {
+			return "", runner.ErrInvalidVolumeName
+		}
+		mount := mount.Mount{
+			Type:   mount.TypeVolume,
+			Source: vol[0],
+			Target: vol[1],
+		}
+		mounts = append(mounts, mount)
+	}
+
 	rp := container.RestartPolicy{
 		Name: container.RestartPolicyMode(options.RestartPolicy),
 	}
@@ -56,6 +75,7 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		RestartPolicy:   rp,
 		Resources:       rs,
 		PublishAllPorts: true,
+		Mounts:          mounts,
 	}
 
 	rsp, err := r.client.ContainerCreate(ctx, &cc, &hc, nil, nil, options.ID)
@@ -80,7 +100,7 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		return "", err
 	}
 
-	out, err := r.client.ContainerLogs(ctx, rsp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
+	out, err := r.client.ContainerLogs(ctx, rsp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
 	if err != nil {
 		return "", err
 	}
@@ -92,10 +112,11 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		}
 	}()
 
-	lr := &io.LimitedReader{R: out, N: 1024}
+	lr := &io.LimitedReader{R: out, N: 4096}
 	buf := &strings.Builder{}
+	multiWriter := io.MultiWriter(os.Stdout, buf)
 
-	if _, err := stdcopy.StdCopy(buf, buf, lr); err != nil {
+	if _, err := stdcopy.StdCopy(multiWriter, multiWriter, lr); err != nil {
 		return "", err
 	}
 
@@ -107,11 +128,49 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 			return "", err
 		}
 	case status := <-statusCh:
+		if status.StatusCode != 0 {
+			return "", runner.ErrBadExitCode
+		}
 		// span
 		slog.InfoContext(ctx, "done waiting for container", "containerID", rsp.ID, "status", status.StatusCode)
 	}
 
 	return buf.String(), nil
+}
+
+func (r *dockerRunner) CreateVolume(ctx context.Context, opts ...runner.CreateVolumeOption) error {
+	options := runner.NewCreateVolumeOptions(opts...)
+
+	if _, err := r.client.VolumeCreate(ctx, volume.CreateOptions{Name: options.Name}); err != nil {
+		return err
+	}
+
+	// span
+	slog.InfoContext(ctx, "created volume", "name", options.Name)
+
+	return nil
+}
+
+func (r *dockerRunner) DeleteVolume(ctx context.Context, opts ...runner.DeleteVolumeOption) error {
+	options := runner.NewDeleteVolumeOptions(opts...)
+
+	vs, err := r.client.VolumeList(ctx, volume.ListOptions{Filters: filters.NewArgs(filters.Arg("name", options.Name))})
+	if err != nil {
+		return err
+	}
+
+	if len(vs.Volumes) == 0 {
+		return runner.ErrVolumeNotFound
+	}
+
+	if err := r.client.VolumeRemove(ctx, options.Name, true); err != nil {
+		return err
+	}
+
+	// span
+	slog.InfoContext(ctx, "removed volume", "name", options.Name)
+
+	return nil
 }
 
 func (r *dockerRunner) remove(ctx context.Context, id string) error {
@@ -127,7 +186,7 @@ func (r *dockerRunner) remove(ctx context.Context, id string) error {
 	// span
 	slog.InfoContext(ctx, "attempting to remove container", "containerID", containerID)
 
-	if err := r.client.ContainerRemove(ctx, containerID, container.RemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: true}); err != nil {
+	if err := r.client.ContainerRemove(ctx, containerID, container.RemoveOptions{RemoveVolumes: false, RemoveLinks: false, Force: true}); err != nil {
 		// span
 		return err
 	}

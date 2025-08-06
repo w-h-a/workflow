@@ -3,5 +3,5 @@ package reader
 import "errors"
 
 var (
-	ErrNotFound = errors.New("not found")
+	ErrRecordNotFound = errors.New("record not found")
 )

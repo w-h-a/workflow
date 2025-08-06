@@ -36,6 +36,7 @@ type RunOptions struct {
 	Env           []string
 	Memory        int64
 	RestartPolicy string
+	Volumes       []string
 	Context       context.Context
 }
 
@@ -75,8 +76,64 @@ func RunWithRestartPolicy(policy string) RunOption {
 	}
 }
 
+func RunWithVolumes(volumes []string) RunOption {
+	return func(o *RunOptions) {
+		o.Volumes = volumes
+	}
+}
+
 func NewRunOptions(opts ...RunOption) RunOptions {
 	options := RunOptions{
+		Context: context.Background(),
+	}
+
+	for _, fn := range opts {
+		fn(&options)
+	}
+
+	return options
+}
+
+type CreateVolumeOption func(o *CreateVolumeOptions)
+
+type CreateVolumeOptions struct {
+	Name    string
+	Context context.Context
+}
+
+func CreateVolumeWithName(name string) CreateVolumeOption {
+	return func(o *CreateVolumeOptions) {
+		o.Name = name
+	}
+}
+
+func NewCreateVolumeOptions(opts ...CreateVolumeOption) CreateVolumeOptions {
+	options := CreateVolumeOptions{
+		Context: context.Background(),
+	}
+
+	for _, fn := range opts {
+		fn(&options)
+	}
+
+	return options
+}
+
+type DeleteVolumeOption func(o *DeleteVolumeOptions)
+
+type DeleteVolumeOptions struct {
+	Name    string
+	Context context.Context
+}
+
+func DeleteVolumeWithName(name string) DeleteVolumeOption {
+	return func(o *DeleteVolumeOptions) {
+		o.Name = name
+	}
+}
+
+func NewDeleteVolumeOptions(opts ...DeleteVolumeOption) DeleteVolumeOptions {
+	options := DeleteVolumeOptions{
 		Context: context.Background(),
 	}
 

@@ -16,9 +16,9 @@ const (
 )
 
 type Task struct {
-	ID            string     `json:"id"`
-	State         State      `json:"state"`
-	Image         string     `json:"image"`
+	ID            string     `json:"id,omitempty"`
+	State         State      `json:"state,omitempty"`
+	Image         string     `json:"image,omitempty"`
 	Cmd           []string   `json:"cmd,omitempty"`
 	Env           []string   `json:"env,omitempty"`
 	Memory        int64      `json:"memory,omitempty"`
@@ -30,4 +30,7 @@ type Task struct {
 	FailedAt      *time.Time `json:"failedAt,omitempty"`
 	Result        string     `json:"result,omitempty"`
 	Error         string     `json:"error,omitempty"`
+	Pre           []*Task    `json:"pre,omitempty"`
+	Post          []*Task    `json:"post,omitempty"`
+	Volumes       []string   `json:"volumes,omitempty"`
 }
