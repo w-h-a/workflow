@@ -17,41 +17,35 @@ import (
 type Service struct {
 	broker     broker.Broker
 	readwriter readwriter.ReadWriter
+	queues     map[string]int
 }
 
 func (s *Service) Start(ch chan struct{}) error {
-	startedOpts := []broker.SubscribeOption{
-		broker.SubscribeWithQueue(broker.STARTED),
-	}
+	var exits []chan struct{}
 
-	started, err := s.broker.Subscribe(context.Background(), s.handleTask, startedOpts...)
-	if err != nil {
-		return err
-	}
+	for name, concurrency := range s.queues {
+		for range concurrency {
+			opts := []broker.SubscribeOption{
+				broker.SubscribeWithQueue(name),
+			}
 
-	completedOpts := []broker.SubscribeOption{
-		broker.SubscribeWithQueue(broker.COMPLETED),
-	}
+			exit, err := s.broker.Subscribe(context.Background(), s.handleTask, opts...)
+			if err != nil {
+				for _, exit := range exits {
+					close(exit)
+				}
+				return err
+			}
 
-	completed, err := s.broker.Subscribe(context.Background(), s.handleTask, completedOpts...)
-	if err != nil {
-		return err
-	}
-
-	failedOpts := []broker.SubscribeOption{
-		broker.SubscribeWithQueue(broker.FAILED),
-	}
-
-	failed, err := s.broker.Subscribe(context.Background(), s.handleTask, failedOpts...)
-	if err != nil {
-		return err
+			exits = append(exits, exit)
+		}
 	}
 
 	<-ch
 
-	close(started)
-	close(completed)
-	close(failed)
+	for _, exit := range exits {
+		close(exit)
+	}
 
 	return nil
 }
@@ -76,8 +70,13 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 
 	bs, _ := json.Marshal(t)
 
+	name := t.Queue
+	if len(name) == 0 {
+		name = broker.SCHEDULED
+	}
+
 	opts := []broker.PublishOption{
-		broker.PublishWithQueue(broker.SCHEDULED),
+		broker.PublishWithQueue(name),
 	}
 
 	if err := s.broker.Publish(ctx, bs, opts...); err != nil {
@@ -101,9 +100,10 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	return nil
 }
 
-func New(b broker.Broker, rw readwriter.ReadWriter) *Service {
+func New(b broker.Broker, rw readwriter.ReadWriter, qs map[string]int) *Service {
 	return &Service{
 		broker:     b,
 		readwriter: rw,
+		queues:     qs,
 	}
 }
