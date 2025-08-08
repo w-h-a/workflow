@@ -23,7 +23,7 @@ func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.
 	b.mtx.Lock()
 	q, ok := b.queues[options.Queue]
 	if !ok {
-		q = make(chan []byte, 10)
+		q = make(chan []byte, 100)
 		b.queues[options.Queue] = q
 	}
 	b.mtx.Unlock()

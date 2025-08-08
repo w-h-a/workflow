@@ -23,8 +23,23 @@ func Factory(
 	readwriterClient readwriter.ReadWriter,
 ) (serverv2.Server, *coordinator.Service, *worker.Service) {
 	// services
-	coordinatorService := coordinator.New(brokerClient, readwriterClient)
-	workerService := worker.New(runnerClient, brokerClient)
+	coordinatorService := coordinator.New(
+		brokerClient,
+		readwriterClient,
+		map[string]int{
+			broker.STARTED:   1,
+			broker.COMPLETED: 1,
+			broker.FAILED:    1,
+		},
+	)
+
+	workerService := worker.New(
+		runnerClient,
+		brokerClient,
+		map[string]int{
+			broker.SCHEDULED: 1,
+		},
+	)
 
 	// base server options
 	opts := []serverv2.ServerOption{

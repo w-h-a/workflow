@@ -17,21 +17,35 @@ import (
 type Service struct {
 	runner runner.Runner
 	broker broker.Broker
+	queues map[string]int
 }
 
 func (s *Service) Start(ch chan struct{}) error {
-	opts := []broker.SubscribeOption{
-		broker.SubscribeWithQueue(broker.SCHEDULED),
-	}
+	var exits []chan struct{}
 
-	exit, err := s.broker.Subscribe(context.Background(), s.handleTask, opts...)
-	if err != nil {
-		return err
+	for name, concurrency := range s.queues {
+		for range concurrency {
+			opts := []broker.SubscribeOption{
+				broker.SubscribeWithQueue(name),
+			}
+
+			exit, err := s.broker.Subscribe(context.Background(), s.handleTask, opts...)
+			if err != nil {
+				for _, exit := range exits {
+					close(exit)
+				}
+				return err
+			}
+
+			exits = append(exits, exit)
+		}
 	}
 
 	<-ch
 
-	close(exit)
+	for _, exit := range exits {
+		close(exit)
+	}
 
 	return nil
 }
@@ -193,9 +207,10 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	return nil
 }
 
-func New(r runner.Runner, b broker.Broker) *Service {
+func New(r runner.Runner, b broker.Broker, qs map[string]int) *Service {
 	return &Service{
 		runner: r,
 		broker: b,
+		queues: qs,
 	}
 }

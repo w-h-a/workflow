@@ -28,6 +28,7 @@ type Task struct {
 	StartedAt     *time.Time `json:"startedAt,omitempty"`
 	CompletedAt   *time.Time `json:"completedAt,omitempty"`
 	FailedAt      *time.Time `json:"failedAt,omitempty"`
+	Queue         string     `json:"queue,omitempty"`
 	Result        string     `json:"result,omitempty"`
 	Error         string     `json:"error,omitempty"`
 	Pre           []*Task    `json:"pre,omitempty"`
