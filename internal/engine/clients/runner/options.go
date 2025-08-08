@@ -30,14 +30,12 @@ func NewOptions(opts ...Option) Options {
 type RunOption func(o *RunOptions)
 
 type RunOptions struct {
-	ID            string
-	Image         string
-	Cmd           []string
-	Env           []string
-	Memory        int64
-	RestartPolicy string
-	Volumes       []string
-	Context       context.Context
+	ID      string
+	Image   string
+	Cmd     []string
+	Env     []string
+	Volumes []string
+	Context context.Context
 }
 
 func RunWithID(id string) RunOption {
@@ -61,18 +59,6 @@ func RunWithCmd(cmd []string) RunOption {
 func RunWithEnv(env []string) RunOption {
 	return func(o *RunOptions) {
 		o.Env = env
-	}
-}
-
-func RunWithMemory(memory int64) RunOption {
-	return func(o *RunOptions) {
-		o.Memory = memory
-	}
-}
-
-func RunWithRestartPolicy(policy string) RunOption {
-	return func(o *RunOptions) {
-		o.RestartPolicy = policy
 	}
 }
 
