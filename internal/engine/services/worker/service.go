@@ -100,8 +100,6 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 			runner.RunWithImage(pre.Image),
 			runner.RunWithCmd(pre.Cmd),
 			runner.RunWithEnv(pre.Env),
-			runner.RunWithMemory(pre.Memory),
-			runner.RunWithRestartPolicy(pre.RestartPolicy),
 			runner.RunWithVolumes(pre.Volumes),
 		}
 		result, err := s.runner.Run(ctx, runOpts...)
@@ -131,8 +129,6 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 		runner.RunWithImage(t.Image),
 		runner.RunWithCmd(t.Cmd),
 		runner.RunWithEnv(t.Env),
-		runner.RunWithMemory(t.Memory),
-		runner.RunWithRestartPolicy(t.RestartPolicy),
 		runner.RunWithVolumes(t.Volumes),
 	}
 
@@ -164,8 +160,6 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 			runner.RunWithImage(post.Image),
 			runner.RunWithCmd(post.Cmd),
 			runner.RunWithEnv(post.Env),
-			runner.RunWithMemory(post.Memory),
-			runner.RunWithRestartPolicy(post.RestartPolicy),
 			runner.RunWithVolumes(post.Volumes),
 		}
 		result, err := s.runner.Run(ctx, runOpts...)

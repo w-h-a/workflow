@@ -62,17 +62,7 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		mounts = append(mounts, mount)
 	}
 
-	rp := container.RestartPolicy{
-		Name: container.RestartPolicyMode(options.RestartPolicy),
-	}
-
-	rs := container.Resources{
-		Memory: options.Memory,
-	}
-
 	hc := container.HostConfig{
-		RestartPolicy:   rp,
-		Resources:       rs,
 		PublishAllPorts: true,
 		Mounts:          mounts,
 	}
