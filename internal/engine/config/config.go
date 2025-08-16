@@ -1,6 +1,12 @@
 package config
 
-import "sync"
+import (
+	"os"
+	"sync"
+
+	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/runner"
+)
 
 var (
 	instance *config
@@ -8,21 +14,82 @@ var (
 )
 
 type config struct {
-	env         string
-	name        string
-	version     string
-	httpAddress string
-	mode        string
+	env            string
+	name           string
+	version        string
+	httpAddress    string
+	mode           string
+	broker         string
+	brokerLocation string
+	runner         string
+	runnerHost     string
 }
 
 func New() {
 	once.Do(func() {
 		instance = &config{
-			env:         "dev",
-			name:        "workflow",
-			version:     "0.1.0-alpha.0",
-			httpAddress: ":4000",
-			mode:        "standalone",
+			env:            "dev",
+			name:           "workflow",
+			version:        "0.1.0-alpha.0",
+			httpAddress:    ":4000",
+			mode:           "standalone",
+			broker:         "memory",
+			brokerLocation: "",
+			runner:         "docker",
+			runnerHost:     "unix:///Users/wesleyanderson/.docker/run/docker.sock",
+		}
+
+		env := os.Getenv("ENV")
+		if len(env) > 0 {
+			instance.env = env
+		}
+
+		name := os.Getenv("NAME")
+		if len(name) > 0 {
+			instance.name = name
+		}
+
+		version := os.Getenv("VERSION")
+		if len(version) > 0 {
+			instance.version = version
+		}
+
+		httpAddress := os.Getenv("HTTP_ADDRESS")
+		if len(httpAddress) > 0 {
+			instance.httpAddress = httpAddress
+		}
+
+		mode := os.Getenv("MODE")
+		if len(mode) > 0 {
+			instance.mode = mode
+		}
+
+		b := os.Getenv("BROKER")
+		if len(b) > 0 {
+			if _, ok := broker.BrokerTypes[b]; ok {
+				instance.broker = b
+			} else {
+				panic("unsupported broker")
+			}
+		}
+
+		brokerLocation := os.Getenv("BROKER_LOCATION")
+		if len(brokerLocation) > 0 {
+			instance.brokerLocation = brokerLocation
+		}
+
+		r := os.Getenv("RUNNER")
+		if len(r) > 0 {
+			if _, ok := runner.RuntimeTypes[r]; ok {
+				instance.runner = r
+			} else {
+				panic("unsupported runner")
+			}
+		}
+
+		runnerHost := os.Getenv("RUNNER_HOST")
+		if len(runnerHost) > 0 {
+			instance.runnerHost = runnerHost
 		}
 	})
 }
@@ -65,4 +132,36 @@ func Mode() string {
 	}
 
 	return instance.mode
+}
+
+func Broker() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.broker
+}
+
+func BrokerLocation() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.brokerLocation
+}
+
+func Runner() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.runner
+}
+
+func RunnerHost() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.runnerHost
 }
