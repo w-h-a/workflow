@@ -17,11 +17,10 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-func Factory(
-	runnerClient runner.Runner,
+func NewCoordinator(
 	brokerClient broker.Broker,
 	readwriterClient readwriter.ReadWriter,
-) (serverv2.Server, *coordinator.Service, *worker.Service) {
+) (serverv2.Server, *coordinator.Service) {
 	// services
 	coordinatorService := coordinator.New(
 		brokerClient,
@@ -30,14 +29,6 @@ func Factory(
 			broker.STARTED:   1,
 			broker.COMPLETED: 1,
 			broker.FAILED:    1,
-		},
-	)
-
-	workerService := worker.New(
-		runnerClient,
-		brokerClient,
-		map[string]int{
-			broker.SCHEDULED: 1,
 		},
 	)
 
@@ -78,5 +69,20 @@ func Factory(
 
 	httpServer.Handle(handler)
 
-	return httpServer, coordinatorService, workerService
+	return httpServer, coordinatorService
+}
+
+func NewWorker(
+	brokerClient broker.Broker,
+	runnerClient runner.Runner,
+) *worker.Service {
+	workerService := worker.New(
+		runnerClient,
+		brokerClient,
+		map[string]int{
+			broker.SCHEDULED: 1,
+		},
+	)
+
+	return workerService
 }
