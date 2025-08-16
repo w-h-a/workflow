@@ -5,7 +5,14 @@ import "context"
 type Option func(o *Options)
 
 type Options struct {
-	Context context.Context
+	Location string
+	Context  context.Context
+}
+
+func WithLocation(location string) Option {
+	return func(o *Options) {
+		o.Location = location
+	}
 }
 
 func NewOptions(opts ...Option) Options {

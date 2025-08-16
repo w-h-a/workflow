@@ -6,6 +6,7 @@ type BrokerType string
 
 const (
 	Memory BrokerType = "memory"
+	Rabbit BrokerType = "rabbit"
 )
 
 type Broker interface {
