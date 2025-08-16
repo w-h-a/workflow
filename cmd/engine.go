@@ -8,7 +8,10 @@ import (
 	"github.com/urfave/cli/v2"
 	"github.com/w-h-a/pkg/serverv2"
 	"github.com/w-h-a/workflow/internal/engine"
+	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	memorybroker "github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
+	"github.com/w-h-a/workflow/internal/engine/clients/broker/rabbit"
+	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	memoryreadwriter "github.com/w-h-a/workflow/internal/engine/clients/readwriter/memory"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner/docker"
@@ -22,7 +25,7 @@ func StartEngine(ctx *cli.Context) error {
 	config.New()
 
 	// broker client
-	brokerClient := memorybroker.NewBroker()
+	brokerClient := initBroker()
 
 	// wait group & stop channels
 	var wg sync.WaitGroup
@@ -32,9 +35,7 @@ func StartEngine(ctx *cli.Context) error {
 	// worker
 	var w *worker.Service
 	if config.Mode() == "standalone" || config.Mode() == "worker" {
-		runnerClient := docker.NewRunner(
-			runner.WithHost("unix:///Users/wesleyanderson/.docker/run/docker.sock"),
-		)
+		runnerClient := initRunner()
 
 		w = engine.NewWorker(
 			brokerClient,
@@ -48,7 +49,7 @@ func StartEngine(ctx *cli.Context) error {
 	var httpServer serverv2.Server
 	var c *coordinator.Service
 	if config.Mode() == "standalone" || config.Mode() == "coordinator" {
-		readwriterClient := memoryreadwriter.NewReadWriter()
+		readwriterClient := initReadWriter()
 
 		httpServer, c = engine.NewCoordinator(
 			brokerClient,
@@ -126,4 +127,25 @@ func StartEngine(ctx *cli.Context) error {
 	slog.InfoContext(ctx.Context, "successfully stopped")
 
 	return nil
+}
+
+func initBroker() broker.Broker {
+	switch config.Broker() {
+	case string(broker.Rabbit):
+		return rabbit.NewBroker(
+			broker.WithLocation(config.BrokerLocation()),
+		)
+	default:
+		return memorybroker.NewBroker()
+	}
+}
+
+func initRunner() runner.Runner {
+	return docker.NewRunner(
+		runner.WithHost(config.RunnerHost()),
+	)
+}
+
+func initReadWriter() readwriter.ReadWriter {
+	return memoryreadwriter.NewReadWriter()
 }

@@ -11,6 +11,12 @@ const (
 	Memory ReadWriterType = "memory"
 )
 
+var (
+	ReadWriterTypes = map[string]ReadWriterType{
+		"memory": Memory,
+	}
+)
+
 type ReadWriter interface {
 	reader.Reader
 	writer.Writer

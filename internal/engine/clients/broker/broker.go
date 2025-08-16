@@ -9,6 +9,13 @@ const (
 	Rabbit BrokerType = "rabbit"
 )
 
+var (
+	BrokerTypes = map[string]BrokerType{
+		"memory": Memory,
+		"rabbit": Rabbit,
+	}
+)
+
 type Broker interface {
 	Subscribe(ctx context.Context, callback func(ctx context.Context, data []byte) error, opts ...SubscribeOption) (chan struct{}, error)
 	Publish(ctx context.Context, data []byte, opts ...PublishOption) error
