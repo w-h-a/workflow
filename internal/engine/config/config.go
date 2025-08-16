@@ -12,6 +12,7 @@ type config struct {
 	name        string
 	version     string
 	httpAddress string
+	mode        string
 }
 
 func New() {
@@ -21,6 +22,7 @@ func New() {
 			name:        "workflow",
 			version:     "0.1.0-alpha.0",
 			httpAddress: ":4000",
+			mode:        "standalone",
 		}
 	})
 }
@@ -55,4 +57,12 @@ func HttpAddress() string {
 	}
 
 	return instance.httpAddress
+}
+
+func Mode() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.mode
 }
