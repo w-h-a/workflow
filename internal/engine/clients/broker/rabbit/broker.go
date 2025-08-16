@@ -11,7 +11,8 @@ import (
 
 type rabbitBroker struct {
 	options broker.Options
-	conn    *amqp.Connection
+	sconn   *amqp.Connection
+	pconn   *amqp.Connection
 	queues  map[string]amqp.Queue
 	mtx     sync.RWMutex
 }
@@ -22,13 +23,17 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 	// span
 	slog.InfoContext(ctx, "subscribing to queue", "queue", options.Queue)
 
-	rbch, err := b.conn.Channel()
+	rbch, err := b.sconn.Channel()
 	if err != nil {
 		return nil, broker.ErrCreatingChannel
 	}
 
 	if err := b.declareQueue(options.Queue, rbch); err != nil {
 		return nil, broker.ErrCreatingQueue
+	}
+
+	if err := rbch.Qos(1, 0, false); err != nil {
+		return nil, broker.ErrSettingMessageCount
 	}
 
 	msgs, err := rbch.Consume(
@@ -87,7 +92,7 @@ func (b *rabbitBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 	// span
 	slog.InfoContext(ctx, "publishing to queue", "data", data, "queue", options.Queue)
 
-	rbch, err := b.conn.Channel()
+	rbch, err := b.pconn.Channel()
 	if err != nil {
 		return broker.ErrCreatingChannel
 	}
@@ -144,7 +149,14 @@ func (b *rabbitBroker) declareQueue(name string, rbch *amqp.Channel) error {
 func NewBroker(opts ...broker.Option) broker.Broker {
 	options := broker.NewOptions(opts...)
 
-	conn, err := amqp.Dial(options.Location)
+	sconn, err := amqp.Dial(options.Location)
+	if err != nil {
+		detail := "failed to connect to rabbitmq broker"
+		slog.ErrorContext(context.Background(), detail, "error", err)
+		panic(detail)
+	}
+
+	pconn, err := amqp.Dial(options.Location)
 	if err != nil {
 		detail := "failed to connect to rabbitmq broker"
 		slog.ErrorContext(context.Background(), detail, "error", err)
@@ -153,7 +165,8 @@ func NewBroker(opts ...broker.Option) broker.Broker {
 
 	b := &rabbitBroker{
 		options: options,
-		conn:    conn,
+		sconn:   sconn,
+		pconn:   pconn,
 		queues:  map[string]amqp.Queue{},
 		mtx:     sync.RWMutex{},
 	}
