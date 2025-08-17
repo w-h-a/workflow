@@ -79,9 +79,7 @@ func NewWorker(
 	workerService := worker.New(
 		runnerClient,
 		brokerClient,
-		map[string]int{
-			broker.SCHEDULED: 1,
-		},
+		config.Queues(),
 	)
 
 	return workerService

@@ -1,7 +1,10 @@
 package config
 
 import (
+	"maps"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
@@ -17,6 +20,7 @@ type config struct {
 	env            string
 	name           string
 	version        string
+	queues         map[string]int
 	httpAddress    string
 	mode           string
 	broker         string
@@ -31,6 +35,7 @@ func New() {
 			env:            "dev",
 			name:           "workflow",
 			version:        "0.1.0-alpha.0",
+			queues:         map[string]int{broker.SCHEDULED: 1},
 			httpAddress:    ":4000",
 			mode:           "standalone",
 			broker:         "memory",
@@ -52,6 +57,29 @@ func New() {
 		version := os.Getenv("VERSION")
 		if len(version) > 0 {
 			instance.version = version
+		}
+
+		qs := os.Getenv("QUEUES")
+		if len(qs) > 0 {
+			for _, q := range strings.Split(qs, ",") {
+				q = strings.TrimSpace(q)
+				if len(q) == 0 {
+					continue
+				}
+				def := strings.Split(q, ":")
+				if len(def) != 2 {
+					panic("invalid queue definition")
+				}
+				name := strings.TrimSpace(def[0])
+				if len(name) == 0 {
+					panic("queue name cannot be empty")
+				}
+				concurrency, err := strconv.Atoi(strings.TrimSpace(def[1]))
+				if err != nil {
+					panic("queue concurrency is not an integer")
+				}
+				instance.queues[name] = concurrency
+			}
 		}
 
 		httpAddress := os.Getenv("HTTP_ADDRESS")
@@ -116,6 +144,18 @@ func Version() string {
 	}
 
 	return instance.version
+}
+
+func Queues() map[string]int {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	queues := make(map[string]int, len(instance.queues))
+
+	maps.Copy(queues, instance.queues)
+
+	return queues
 }
 
 func HttpAddress() string {
