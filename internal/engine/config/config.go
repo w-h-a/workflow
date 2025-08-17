@@ -41,7 +41,7 @@ func New() {
 			broker:         "memory",
 			brokerLocation: "",
 			runner:         "docker",
-			runnerHost:     "unix:///Users/wesleyanderson/.docker/run/docker.sock",
+			runnerHost:     "unix:///var/run/docker.sock",
 		}
 
 		env := os.Getenv("ENV")

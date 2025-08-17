@@ -3,7 +3,6 @@ services:
     container_name: rabbitmq
     image: rabbitmq:3.13-management
     ports:
-      - "5672:5672"
       - "15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
@@ -11,3 +10,41 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  worker:
+    container_name: worker
+    build: .
+    command: engine
+    environment:
+      - ENV=dev
+      - NAME=worker
+      - VERSION=0.1.0-alpha.0
+      - HTTP_ADDRESS=:4000
+      - MODE=worker
+      - BROKER=rabbit
+      - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      - RUNNER=docker
+      - RUNNER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  coordinator:
+    container_name: coordinator
+    build: .
+    command: engine
+    ports:
+      - "4000:4000"
+    environment:
+      - ENV=dev
+      - NAME=coordinator
+      - VERSION=0.1.0-alpha.0
+      - HTTP_ADDRESS=:4000
+      - MODE=coordinator
+      - BROKER=rabbit
+      - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
