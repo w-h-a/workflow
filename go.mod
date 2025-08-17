@@ -6,9 +6,11 @@ require (
 	github.com/docker/docker v26.1.5+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
+	github.com/lib/pq v1.10.9
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/w-h-a/pkg v0.41.0
+	go.nhat.io/otelsql v0.16.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0
 	go.opentelemetry.io/otel v1.37.0
 )
