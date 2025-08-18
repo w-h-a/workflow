@@ -21,6 +21,7 @@ import (
 type dockerRunner struct {
 	options runner.Options
 	client  *client.Client
+	images  map[string]bool
 	tasks   map[string]string
 	mtx     sync.RWMutex
 }
@@ -30,15 +31,8 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 
 	// TODO: validate the options for docker
 
-	reader, err := r.client.ImagePull(ctx, options.Image, image.PullOptions{})
-	if err != nil {
-		// span
-		slog.ErrorContext(ctx, "failed to pull image", "image", options.Image, "error", err)
-		return "", err
-	}
-
-	if _, err := io.Copy(os.Stdout, reader); err != nil {
-		return "", err
+	if err := r.pullImage(ctx, options.Image); err != nil {
+		return "", runner.ErrPullingImage
 	}
 
 	cc := container.Config{
@@ -162,6 +156,44 @@ func (r *dockerRunner) DeleteVolume(ctx context.Context, opts ...runner.DeleteVo
 	return nil
 }
 
+func (r *dockerRunner) pullImage(ctx context.Context, tag string) error {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	if _, ok := r.images[tag]; ok {
+		return nil
+	}
+
+	images, err := r.client.ImageList(ctx, image.ListOptions{All: true})
+	if err != nil {
+		return err
+	}
+
+	for _, img := range images {
+		for _, t := range img.RepoTags {
+			if t == tag {
+				r.images[t] = true
+				return nil
+			}
+		}
+	}
+
+	reader, err := r.client.ImagePull(ctx, tag, image.PullOptions{})
+	if err != nil {
+		return err
+	}
+
+	defer reader.Close()
+
+	if _, err := io.Copy(os.Stdout, reader); err != nil {
+		return err
+	}
+
+	r.images[tag] = true
+
+	return nil
+}
+
 func (r *dockerRunner) remove(ctx context.Context, id string) error {
 	r.mtx.Lock()
 	containerID, ok := r.tasks[id]
@@ -197,6 +229,7 @@ func NewRunner(opts ...runner.Option) runner.Runner {
 	dr := &dockerRunner{
 		options: options,
 		client:  c,
+		images:  map[string]bool{},
 		tasks:   map[string]string{},
 		mtx:     sync.RWMutex{},
 	}
