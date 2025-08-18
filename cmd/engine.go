@@ -13,6 +13,7 @@ import (
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/rabbit"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	memoryreadwriter "github.com/w-h-a/workflow/internal/engine/clients/readwriter/memory"
+	"github.com/w-h-a/workflow/internal/engine/clients/readwriter/postgres"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner/docker"
 	"github.com/w-h-a/workflow/internal/engine/config"
@@ -147,5 +148,12 @@ func initRunner() runner.Runner {
 }
 
 func initReadWriter() readwriter.ReadWriter {
-	return memoryreadwriter.NewReadWriter()
+	switch config.ReadWriter() {
+	case string(readwriter.Postgres):
+		return postgres.NewReadWriter(
+			readwriter.WithLocation(config.ReadWriterLocation()),
+		)
+	default:
+		return memoryreadwriter.NewReadWriter()
+	}
 }

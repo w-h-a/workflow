@@ -11,6 +11,22 @@ services:
       retries: 5
       start_period: 30s
 
+  postgres:
+    container_name: postgres
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=tasks
+      - POSTGRES_PASSWORD=tasks
+      - POSTGRES_DB=tasks
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tasks"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   worker:
     container_name: worker
     build: .
@@ -19,7 +35,6 @@ services:
       - ENV=dev
       - NAME=worker
       - VERSION=0.1.0-alpha.0
-      - HTTP_ADDRESS=:4000
       - MODE=worker
       - BROKER=rabbit
       - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
@@ -45,6 +60,10 @@ services:
       - MODE=coordinator
       - BROKER=rabbit
       - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      - READ_WRITER=postgres
+      - READ_WRITER_LOCATION=postgres://tasks:tasks@postgres:5432/tasks?sslmode=disable
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      postgres:
         condition: service_healthy

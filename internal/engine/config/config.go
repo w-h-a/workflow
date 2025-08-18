@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 )
 
@@ -17,31 +18,35 @@ var (
 )
 
 type config struct {
-	env            string
-	name           string
-	version        string
-	queues         map[string]int
-	httpAddress    string
-	mode           string
-	broker         string
-	brokerLocation string
-	runner         string
-	runnerHost     string
+	env                string
+	name               string
+	version            string
+	queues             map[string]int
+	httpAddress        string
+	mode               string
+	broker             string
+	brokerLocation     string
+	runner             string
+	runnerHost         string
+	readwriter         string
+	readwriterLocation string
 }
 
 func New() {
 	once.Do(func() {
 		instance = &config{
-			env:            "dev",
-			name:           "workflow",
-			version:        "0.1.0-alpha.0",
-			queues:         map[string]int{broker.SCHEDULED: 1},
-			httpAddress:    ":4000",
-			mode:           "standalone",
-			broker:         "memory",
-			brokerLocation: "",
-			runner:         "docker",
-			runnerHost:     "unix:///var/run/docker.sock",
+			env:                "dev",
+			name:               "workflow",
+			version:            "0.1.0-alpha.0",
+			queues:             map[string]int{broker.SCHEDULED: 1},
+			httpAddress:        ":4000",
+			mode:               "standalone",
+			broker:             "memory",
+			brokerLocation:     "",
+			runner:             "docker",
+			runnerHost:         "unix:///var/run/docker.sock",
+			readwriter:         "memory",
+			readwriterLocation: "",
 		}
 
 		env := os.Getenv("ENV")
@@ -118,6 +123,20 @@ func New() {
 		runnerHost := os.Getenv("RUNNER_HOST")
 		if len(runnerHost) > 0 {
 			instance.runnerHost = runnerHost
+		}
+
+		rw := os.Getenv("READ_WRITER")
+		if len(rw) > 0 {
+			if _, ok := readwriter.ReadWriterTypes[rw]; ok {
+				instance.readwriter = rw
+			} else {
+				panic("unsupported readwriter")
+			}
+		}
+
+		readwriterLocation := os.Getenv("READ_WRITER_LOCATION")
+		if len(readwriterLocation) > 0 {
+			instance.readwriterLocation = readwriterLocation
 		}
 	})
 }
@@ -204,4 +223,20 @@ func RunnerHost() string {
 	}
 
 	return instance.runnerHost
+}
+
+func ReadWriter() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.readwriter
+}
+
+func ReadWriterLocation() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.readwriterLocation
 }

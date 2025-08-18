@@ -20,6 +20,19 @@ func main() {
 					return cmd.StartEngine(ctx)
 				},
 			},
+			{
+				Name: "migration",
+				Action: func(ctx *cli.Context) error {
+					return cmd.RunMigrations(ctx)
+				},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "location",
+						Usage:    "Provide the db location",
+						Required: true,
+					},
+				},
+			},
 		},
 	}
 

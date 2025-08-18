@@ -8,12 +8,14 @@ import (
 type ReadWriterType string
 
 const (
-	Memory ReadWriterType = "memory"
+	Memory   ReadWriterType = "memory"
+	Postgres ReadWriterType = "postgres"
 )
 
 var (
 	ReadWriterTypes = map[string]ReadWriterType{
-		"memory": Memory,
+		"memory":   Memory,
+		"postgres": Postgres,
 	}
 )
 
