@@ -1,0 +1,9 @@
+{
+    "name": "snooze fest",
+    "image": "ubuntu:mantic",
+    "cmd": [
+        "sleep",
+        "10"
+    ],
+    "timeout": "5s"
+}
