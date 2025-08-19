@@ -107,7 +107,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 		if err := s.runner.CreateVolume(ctx, opts...); err != nil {
 			return err
 		}
-		defer func() {
+		defer func(volName string) {
 			opts := []runner.DeleteVolumeOption{
 				runner.DeleteVolumeWithName(volName),
 			}
@@ -115,7 +115,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 				// span
 				slog.ErrorContext(ctx, "failed to delete volume", "name", volName)
 			}
-		}()
+		}(volName)
 		vs = append(vs, fmt.Sprintf("%s:%s", volName, v))
 	}
 
