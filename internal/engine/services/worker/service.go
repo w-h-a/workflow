@@ -16,11 +16,11 @@ import (
 )
 
 type Service struct {
-	runner runner.Runner
-	broker broker.Broker
-	queues map[string]int
-	tasks  map[string]*runningTask
-	mtx    sync.RWMutex
+	runner  runner.Runner
+	broker  broker.Broker
+	queues  map[string]int
+	cancels map[string]context.CancelFunc
+	mtx     sync.RWMutex
 }
 
 func (s *Service) Start(ch chan struct{}) error {
@@ -68,18 +68,16 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 
 func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	s.mtx.Lock()
-	s.tasks[t.ID] = &runningTask{
-		task:   t,
-		cancel: cancel,
-	}
+	s.cancels[t.ID] = cancel
 	s.mtx.Unlock()
 
 	defer func() {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
-		delete(s.tasks, t.ID)
+		delete(s.cancels, t.ID)
 	}()
 
 	started := time.Now()
@@ -232,23 +230,23 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 
 func (s *Service) cancelTask(_ context.Context, t *task.Task) error {
 	s.mtx.RLock()
-	rt, ok := s.tasks[t.ID]
+	cancel, ok := s.cancels[t.ID]
 	s.mtx.RUnlock()
 	if !ok {
 		return nil
 	}
 
-	rt.cancel()
+	cancel()
 
 	return nil
 }
 
 func New(r runner.Runner, b broker.Broker, qs map[string]int) *Service {
 	return &Service{
-		runner: r,
-		broker: b,
-		queues: qs,
-		tasks:  map[string]*runningTask{},
-		mtx:    sync.RWMutex{},
+		runner:  r,
+		broker:  b,
+		queues:  qs,
+		cancels: map[string]context.CancelFunc{},
+		mtx:     sync.RWMutex{},
 	}
 }
