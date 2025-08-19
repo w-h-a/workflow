@@ -8,9 +8,8 @@ type State string
 
 const (
 	Scheduled State = "SCHEDULED"
-	Started   State = "STARTED"
 	Cancelled State = "CANCELLED"
-	Stopped   State = "STOPPED"
+	Started   State = "STARTED"
 	Completed State = "COMPLETED"
 	Failed    State = "FAILED"
 )
@@ -22,6 +21,7 @@ type Task struct {
 	Cmd         []string   `json:"cmd,omitempty"`
 	Env         []string   `json:"env,omitempty"`
 	ScheduledAt *time.Time `json:"scheduledAt,omitempty"`
+	CancelledAt *time.Time `json:"cancelledAt,omitempty"`
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 	FailedAt    *time.Time `json:"failedAt,omitempty"`

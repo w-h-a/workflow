@@ -22,7 +22,7 @@ func (t *Task) GetOneTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view, err := t.coordinator.RetrieveTask(ctx, taskId)
+	result, err := t.coordinator.RetrieveTask(ctx, taskId)
 	if err != nil && errors.Is(err, task.ErrTaskNotFound) {
 		wrtRsp(w, http.StatusNotFound, map[string]any{"error": err.Error()})
 		return
@@ -31,7 +31,7 @@ func (t *Task) GetOneTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wrtRsp(w, http.StatusOK, view)
+	wrtRsp(w, http.StatusOK, result)
 }
 
 func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +50,38 @@ func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wrtRsp(w, http.StatusOK, scheduled)
+}
+
+func (t *Task) PutCancelTask(w http.ResponseWriter, r *http.Request) {
+	ctx := reqToCtx(r)
+
+	taskId, err := t.parser.ParseTaskId(ctx, r)
+	if err != nil {
+		wrtRsp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+
+	result, err := t.coordinator.RetrieveTask(ctx, taskId)
+	if err != nil && errors.Is(err, task.ErrTaskNotFound) {
+		wrtRsp(w, http.StatusNotFound, map[string]any{"error": err.Error()})
+		return
+	} else if err != nil {
+		wrtRsp(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+
+	if result.State != task.Started {
+		wrtRsp(w, http.StatusBadRequest, map[string]any{"error": "task is not cancellable"})
+		return
+	}
+
+	cancelled, err := t.coordinator.CancelTask(ctx, result)
+	if err != nil {
+		wrtRsp(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+
+	wrtRsp(w, http.StatusOK, cancelled)
 }
 
 func NewTaskHandler(coordinatorService *coordinator.Service) *Task {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,8 @@ type Service struct {
 	runner runner.Runner
 	broker broker.Broker
 	queues map[string]int
+	tasks  map[string]*runningTask
+	mtx    sync.RWMutex
 }
 
 func (s *Service) Start(ch chan struct{}) error {
@@ -52,6 +55,32 @@ func (s *Service) Start(ch chan struct{}) error {
 
 func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	t, _ := task.Factory(data)
+
+	switch t.State {
+	case task.Scheduled:
+		return s.runTask(ctx, t)
+	case task.Cancelled:
+		return s.cancelTask(ctx, t)
+	}
+
+	return nil
+}
+
+func (s *Service) runTask(ctx context.Context, t *task.Task) error {
+	ctx, cancel := context.WithCancel(ctx)
+
+	s.mtx.Lock()
+	s.tasks[t.ID] = &runningTask{
+		task:   t,
+		cancel: cancel,
+	}
+	s.mtx.Unlock()
+
+	defer func() {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
+		delete(s.tasks, t.ID)
+	}()
 
 	started := time.Now()
 
@@ -201,10 +230,25 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	return nil
 }
 
+func (s *Service) cancelTask(_ context.Context, t *task.Task) error {
+	s.mtx.RLock()
+	rt, ok := s.tasks[t.ID]
+	s.mtx.RUnlock()
+	if !ok {
+		return nil
+	}
+
+	rt.cancel()
+
+	return nil
+}
+
 func New(r runner.Runner, b broker.Broker, qs map[string]int) *Service {
 	return &Service{
 		runner: r,
 		broker: b,
 		queues: qs,
+		tasks:  map[string]*runningTask{},
+		mtx:    sync.RWMutex{},
 	}
 }
