@@ -106,6 +106,8 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 	statusCh, errCh := r.client.ContainerWait(ctx, rsp.ID, container.WaitConditionNotRunning)
 
 	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
 	case err := <-errCh:
 		if err != nil {
 			return "", err

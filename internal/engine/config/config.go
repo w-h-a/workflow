@@ -38,7 +38,7 @@ func New() {
 			env:                "dev",
 			name:               "workflow",
 			version:            "0.1.0-alpha.0",
-			queues:             map[string]int{broker.SCHEDULED: 1},
+			queues:             map[string]int{broker.SCHEDULED: 1, broker.CANCELLED: 1},
 			httpAddress:        ":4000",
 			mode:               "standalone",
 			broker:             "memory",

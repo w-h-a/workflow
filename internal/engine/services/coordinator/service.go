@@ -92,6 +92,34 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 	return t, nil
 }
 
+func (s *Service) CancelTask(ctx context.Context, t *task.Task) (*task.Task, error) {
+	now := time.Now()
+
+	t.State = task.Cancelled
+	t.CancelledAt = &now
+
+	bs, _ := json.Marshal(t)
+
+	name := t.Queue
+	if len(name) == 0 {
+		name = broker.CANCELLED
+	}
+
+	opts := []broker.PublishOption{
+		broker.PublishWithQueue(name),
+	}
+
+	if err := s.broker.Publish(ctx, bs, opts...); err != nil {
+		return nil, err
+	}
+
+	if err := s.readwriter.Write(ctx, t.ID, bs); err != nil {
+		return nil, err
+	}
+
+	return t, nil
+}
+
 func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	t, _ := task.Factory(data)
 
