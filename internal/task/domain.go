@@ -31,4 +31,15 @@ type Task struct {
 	Pre         []*Task    `json:"pre,omitempty"`
 	Post        []*Task    `json:"post,omitempty"`
 	Volumes     []string   `json:"volumes,omitempty"`
+	Retry       *Retry     `json:"retry,omitempty"`
+}
+
+const (
+	DEFAULT_RETRY_INITIAL_DELAY = "1s"
+)
+
+type Retry struct {
+	Limit        int    `json:"limit,omitempty"`
+	InitialDelay string `json:"initialDelay,omitempty"`
+	Attempts     int    `json:"attempts,omitempty"`
 }

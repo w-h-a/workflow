@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -93,9 +95,38 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	t, _ := task.Factory(data)
 
-	if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
-		return err
+	if t.State != task.Failed || t.Retry == nil || t.Retry.Attempts >= t.Retry.Limit {
+		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+			return err
+		}
+
+		return nil
 	}
+
+	t.Retry.Attempts = t.Retry.Attempts + 1
+	t.State = task.Scheduled
+	t.Error = ""
+
+	bs, _ := json.Marshal(t)
+
+	name := t.Queue
+	if len(name) == 0 {
+		name = broker.SCHEDULED
+	}
+
+	dur, _ := time.ParseDuration(t.Retry.InitialDelay)
+
+	go func() {
+		delay := dur * time.Duration(math.Pow(float64(2), float64(t.Retry.Attempts-1)))
+		time.Sleep(delay)
+		opts := []broker.PublishOption{
+			broker.PublishWithQueue(name),
+		}
+		if err := s.broker.Publish(ctx, bs, opts...); err != nil {
+			// span
+			slog.ErrorContext(ctx, "failed to retry task")
+		}
+	}()
 
 	return nil
 }
