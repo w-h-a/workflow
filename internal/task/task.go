@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -12,7 +13,11 @@ func Factory(bs []byte) (*Task, error) {
 		return nil, err
 	}
 
-	// TODO: more validation
+	if len(strings.TrimSpace(t.Image)) == 0 {
+		return nil, ErrMissingImage
+	}
+
+	// TODO: validate queue field
 
 	if t.Retry != nil {
 		if t.Retry.Attempts != 0 {

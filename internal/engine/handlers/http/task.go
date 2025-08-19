@@ -8,12 +8,12 @@ import (
 	"github.com/w-h-a/workflow/internal/task"
 )
 
-type Task struct {
+type Tasks struct {
 	parser      *Parser
 	coordinator *coordinator.Service
 }
 
-func (t *Task) GetOneTask(w http.ResponseWriter, r *http.Request) {
+func (t *Tasks) GetOneTask(w http.ResponseWriter, r *http.Request) {
 	ctx := reqToCtx(r)
 
 	taskId, err := t.parser.ParseTaskId(ctx, r)
@@ -34,7 +34,7 @@ func (t *Task) GetOneTask(w http.ResponseWriter, r *http.Request) {
 	wrtRsp(w, http.StatusOK, result)
 }
 
-func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
+func (t *Tasks) PostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := reqToCtx(r)
 
 	task, err := t.parser.ParsePostBody(ctx, r)
@@ -52,7 +52,7 @@ func (t *Task) PostTask(w http.ResponseWriter, r *http.Request) {
 	wrtRsp(w, http.StatusOK, scheduled)
 }
 
-func (t *Task) PutCancelTask(w http.ResponseWriter, r *http.Request) {
+func (t *Tasks) PutCancelTask(w http.ResponseWriter, r *http.Request) {
 	ctx := reqToCtx(r)
 
 	taskId, err := t.parser.ParseTaskId(ctx, r)
@@ -84,8 +84,8 @@ func (t *Task) PutCancelTask(w http.ResponseWriter, r *http.Request) {
 	wrtRsp(w, http.StatusOK, cancelled)
 }
 
-func NewTaskHandler(coordinatorService *coordinator.Service) *Task {
-	return &Task{
+func NewTasksHandler(coordinatorService *coordinator.Service) *Tasks {
+	return &Tasks{
 		parser:      &Parser{},
 		coordinator: coordinatorService,
 	}

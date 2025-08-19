@@ -45,10 +45,10 @@ func NewCoordinator(
 	httpStatus := httphandlers.NewStatusHandler()
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
-	httpTask := httphandlers.NewTaskHandler(coordinatorService)
-	router.Methods(http.MethodGet).Path("/task/{id}").HandlerFunc(httpTask.GetOneTask)
-	router.Methods(http.MethodPut).Path("/task/cancel/{id}").HandlerFunc(httpTask.PutCancelTask)
-	router.Methods(http.MethodPost).Path("/task").HandlerFunc(httpTask.PostTask)
+	httpTasks := httphandlers.NewTasksHandler(coordinatorService)
+	router.Methods(http.MethodGet).Path("/tasks/{id}").HandlerFunc(httpTasks.GetOneTask)
+	router.Methods(http.MethodPut).Path("/tasks/cancel/{id}").HandlerFunc(httpTasks.PutCancelTask)
+	router.Methods(http.MethodPost).Path("/tasks").HandlerFunc(httpTasks.PostTask)
 
 	// create http server
 	httpOpts := []serverv2.ServerOption{
