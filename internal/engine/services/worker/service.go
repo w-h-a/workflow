@@ -122,14 +122,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	for _, pre := range t.Pre {
 		pre.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
 		pre.Volumes = t.Volumes
-		runOpts := []runner.RunOption{
-			runner.RunWithID(pre.ID),
-			runner.RunWithImage(pre.Image),
-			runner.RunWithCmd(pre.Cmd),
-			runner.RunWithEnv(pre.Env),
-			runner.RunWithVolumes(pre.Volumes),
-		}
-		result, err := s.runner.Run(ctx, runOpts...)
+		result, err := s.run(ctx, pre)
 		finished := time.Now()
 		if err != nil {
 			t.Error = err.Error()
@@ -151,16 +144,10 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 		pre.Result = result
 	}
 
-	runOpts := []runner.RunOption{
-		runner.RunWithID(t.ID),
-		runner.RunWithImage(t.Image),
-		runner.RunWithCmd(t.Cmd),
-		runner.RunWithEnv(t.Env),
-		runner.RunWithVolumes(t.Volumes),
-	}
+	result, err := s.run(ctx, t)
 
-	result, err := s.runner.Run(ctx, runOpts...)
 	finished := time.Now()
+
 	if err != nil {
 		t.Error = err.Error()
 		t.State = task.Failed
@@ -182,14 +169,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	for _, post := range t.Post {
 		post.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
 		post.Volumes = t.Volumes
-		runOpts := []runner.RunOption{
-			runner.RunWithID(post.ID),
-			runner.RunWithImage(post.Image),
-			runner.RunWithCmd(post.Cmd),
-			runner.RunWithEnv(post.Env),
-			runner.RunWithVolumes(post.Volumes),
-		}
-		result, err := s.runner.Run(ctx, runOpts...)
+		result, err := s.run(ctx, post)
 		finished := time.Now()
 		if err != nil {
 			t.Error = err.Error()
@@ -226,6 +206,25 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	}
 
 	return nil
+}
+
+func (s *Service) run(ctx context.Context, t *task.Task) (string, error) {
+	if len(t.Timeout) > 0 {
+		dur, _ := time.ParseDuration(t.Timeout)
+		timeoutCtx, cancel := context.WithTimeout(ctx, dur)
+		defer cancel()
+		ctx = timeoutCtx
+	}
+
+	runOpts := []runner.RunOption{
+		runner.RunWithID(t.ID),
+		runner.RunWithImage(t.Image),
+		runner.RunWithCmd(t.Cmd),
+		runner.RunWithEnv(t.Env),
+		runner.RunWithVolumes(t.Volumes),
+	}
+
+	return s.runner.Run(ctx, runOpts...)
 }
 
 func (s *Service) cancelTask(_ context.Context, t *task.Task) error {

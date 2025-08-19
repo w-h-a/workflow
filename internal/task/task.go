@@ -46,5 +46,16 @@ func Factory(bs []byte) (*Task, error) {
 		}
 	}
 
+	if len(t.Timeout) > 0 {
+		timeout, err := time.ParseDuration(t.Timeout)
+		if err != nil {
+			return nil, ErrInvalidTimeout
+		}
+
+		if timeout <= 0 {
+			return nil, ErrInvalidTimeout
+		}
+	}
+
 	return t, nil
 }

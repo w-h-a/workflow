@@ -9,4 +9,5 @@ var (
 	ErrExcessiveLimit                = errors.New("may not specify retry limit > 10")
 	ErrInvalidInitialDelayDuration   = errors.New("invalid initial delay duration")
 	ErrExcessiveInitialDelayDuration = errors.New("may not specify retry initial delay duration > 5 mins")
+	ErrInvalidTimeout                = errors.New("invalid timeout")
 )
