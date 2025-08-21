@@ -52,6 +52,33 @@ func (s *Service) Start(ch chan struct{}) error {
 	return nil
 }
 
+func (s *Service) RetrieveTasks(ctx context.Context, page, size int) (*TasksWithMetadata, error) {
+	opts := []reader.ReadOption{
+		reader.ReadWithPage(page),
+		reader.ReadWithSize(size),
+	}
+
+	rp, err := s.readwriter.Read(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	tasks := make([]*task.Task, 0, len(rp.Items))
+
+	for _, bs := range rp.Items {
+		task, _ := task.Factory(bs)
+		tasks = append(tasks, task)
+	}
+
+	return &TasksWithMetadata{
+		Tasks:      tasks,
+		Size:       rp.Size,
+		Number:     rp.Number,
+		TotalPages: rp.TotalPages,
+		TotalTasks: rp.TotalItems,
+	}, nil
+}
+
 func (s *Service) RetrieveTask(ctx context.Context, id string) (*task.Task, error) {
 	bs, err := s.readwriter.ReadById(ctx, id)
 	if err != nil && errors.Is(err, reader.ErrRecordNotFound) {

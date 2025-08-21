@@ -27,6 +27,40 @@ func NewOptions(opts ...Option) Options {
 	return options
 }
 
+type ReadOption func(o *ReadOptions)
+
+type ReadOptions struct {
+	Size    int
+	Page    int
+	Context context.Context
+}
+
+func ReadWithSize(size int) ReadOption {
+	return func(o *ReadOptions) {
+		o.Size = size
+	}
+}
+
+func ReadWithPage(page int) ReadOption {
+	return func(o *ReadOptions) {
+		o.Page = page
+	}
+}
+
+func NewReadOptions(opts ...ReadOption) ReadOptions {
+	options := ReadOptions{
+		Page:    1,
+		Size:    10,
+		Context: context.Background(),
+	}
+
+	for _, fn := range opts {
+		fn(&options)
+	}
+
+	return options
+}
+
 type ReadByIdOption func(o *ReadByIdOptions)
 
 type ReadByIdOptions struct {
