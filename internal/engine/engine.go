@@ -46,6 +46,7 @@ func NewCoordinator(
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
 	httpTasks := httphandlers.NewTasksHandler(coordinatorService)
+	router.Methods(http.MethodGet).Path("/tasks").HandlerFunc(httpTasks.GetTasks)
 	router.Methods(http.MethodGet).Path("/tasks/{id}").HandlerFunc(httpTasks.GetOneTask)
 	router.Methods(http.MethodPut).Path("/tasks/cancel/{id}").HandlerFunc(httpTasks.PutCancelTask)
 	router.Methods(http.MethodPost).Path("/tasks").HandlerFunc(httpTasks.PostTask)

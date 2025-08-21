@@ -13,6 +13,24 @@ type Tasks struct {
 	coordinator *coordinator.Service
 }
 
+func (t *Tasks) GetTasks(w http.ResponseWriter, r *http.Request) {
+	ctx := reqToCtx(r)
+
+	page, size, err := t.parser.ParseTasksQuery(ctx, r)
+	if err != nil {
+		wrtRsp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+
+	tasks, err := t.coordinator.RetrieveTasks(ctx, page, size)
+	if err != nil {
+		wrtRsp(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+
+	wrtRsp(w, http.StatusOK, tasks)
+}
+
 func (t *Tasks) GetOneTask(w http.ResponseWriter, r *http.Request) {
 	ctx := reqToCtx(r)
 

@@ -38,6 +38,51 @@ type postgresReadWriter struct {
 	conn    *sql.DB
 }
 
+func (rw *postgresReadWriter) Read(ctx context.Context, opts ...reader.ReadOption) (*reader.Page, error) {
+	options := reader.NewReadOptions(opts...)
+
+	offset := (options.Page - 1) * options.Size
+
+	rows, err := rw.conn.QueryContext(
+		ctx,
+		`SELECT count(*) OVER(), id, value FROM tasks ORDER BY created_at DESC OFFSET $1 LIMIT $2;`,
+		offset,
+		options.Size,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	totalRecords := 0
+	results := [][]byte{}
+
+	for rows.Next() {
+		record := &reader.Record{}
+
+		if err := rows.Scan(&totalRecords, &record.Id, &record.Value); err != nil {
+			return nil, err
+		}
+
+		results = append(results, append([]byte{}, record.Value...))
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	totalPages := (totalRecords + options.Size - 1) / options.Size
+
+	return &reader.Page{
+		Items:      results,
+		Size:       len(results),
+		Number:     options.Page,
+		TotalPages: totalPages,
+		TotalItems: totalRecords,
+	}, nil
+}
+
 func (rw *postgresReadWriter) ReadById(ctx context.Context, id string, opts ...reader.ReadByIdOption) ([]byte, error) {
 	row := rw.conn.QueryRowContext(
 		ctx,

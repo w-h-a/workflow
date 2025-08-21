@@ -12,7 +12,37 @@ import (
 type memoryReadWriter struct {
 	options readwriter.Options
 	store   map[string][]byte
+	ids     []string
 	mtx     sync.RWMutex
+}
+
+func (rw *memoryReadWriter) Read(ctx context.Context, opts ...reader.ReadOption) (*reader.Page, error) {
+	options := reader.NewReadOptions(opts...)
+
+	offset := (options.Page - 1) * options.Size
+
+	rw.mtx.RLock()
+	defer rw.mtx.RUnlock()
+
+	results := [][]byte{}
+
+	for i := offset; i < (options.Size+offset) && i < len(rw.ids); i++ {
+		data, ok := rw.store[rw.ids[i]]
+		if !ok {
+			continue
+		}
+		results = append(results, append([]byte{}, data...))
+	}
+
+	totalPages := (len(rw.ids) + options.Size - 1) / options.Size
+
+	return &reader.Page{
+		Items:      results,
+		Size:       len(results),
+		Number:     options.Page,
+		TotalPages: totalPages,
+		TotalItems: len(rw.ids),
+	}, nil
 }
 
 func (rw *memoryReadWriter) ReadById(ctx context.Context, id string, opts ...reader.ReadByIdOption) ([]byte, error) {
@@ -31,6 +61,10 @@ func (rw *memoryReadWriter) Write(ctx context.Context, id string, data []byte, o
 	rw.mtx.Lock()
 	defer rw.mtx.Unlock()
 
+	if _, exists := rw.store[id]; !exists {
+		rw.ids = append([]string{id}, rw.ids...)
+	}
+
 	rw.store[id] = append([]byte{}, data...)
 
 	return nil
@@ -42,6 +76,7 @@ func NewReadWriter(opts ...readwriter.Option) readwriter.ReadWriter {
 	rw := &memoryReadWriter{
 		options: options,
 		store:   map[string][]byte{},
+		ids:     []string{},
 		mtx:     sync.RWMutex{},
 	}
 
