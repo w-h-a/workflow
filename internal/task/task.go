@@ -31,19 +31,6 @@ func Factory(bs []byte) (*Task, error) {
 		if t.Retry.Limit < 0 {
 			t.Retry.Limit = 0
 		}
-
-		if len(t.Retry.InitialDelay) == 0 {
-			t.Retry.InitialDelay = DEFAULT_RETRY_INITIAL_DELAY
-		}
-
-		delay, err := time.ParseDuration(t.Retry.InitialDelay)
-		if err != nil {
-			return nil, ErrInvalidInitialDelayDuration
-		}
-
-		if delay > (time.Minute * 5) {
-			return nil, ErrExcessiveInitialDelayDuration
-		}
 	}
 
 	if len(t.Timeout) > 0 {

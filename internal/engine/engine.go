@@ -49,6 +49,7 @@ func NewCoordinator(
 	router.Methods(http.MethodGet).Path("/tasks").HandlerFunc(httpTasks.GetTasks)
 	router.Methods(http.MethodGet).Path("/tasks/{id}").HandlerFunc(httpTasks.GetOneTask)
 	router.Methods(http.MethodPut).Path("/tasks/cancel/{id}").HandlerFunc(httpTasks.PutCancelTask)
+	router.Methods(http.MethodPut).Path("/tasks/restart/{id}").HandlerFunc(httpTasks.PutRestartTask)
 	router.Methods(http.MethodPost).Path("/tasks").HandlerFunc(httpTasks.PostTask)
 
 	// create http server
