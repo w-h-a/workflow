@@ -35,12 +35,7 @@ type Task struct {
 	Timeout     string     `json:"timeout,omitempty"`
 }
 
-const (
-	DEFAULT_RETRY_INITIAL_DELAY = "1s"
-)
-
 type Retry struct {
-	Limit        int    `json:"limit,omitempty"`
-	InitialDelay string `json:"initialDelay,omitempty"`
-	Attempts     int    `json:"attempts,omitempty"`
+	Limit    int `json:"limit,omitempty"`
+	Attempts int `json:"attempts,omitempty"`
 }

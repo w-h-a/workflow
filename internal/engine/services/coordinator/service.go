@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
-	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +19,8 @@ type Service struct {
 	broker     broker.Broker
 	readwriter readwriter.ReadWriter
 	queues     map[string]int
+	locks      map[string]*sync.RWMutex
+	mtx        sync.RWMutex
 }
 
 func (s *Service) Start(ch chan struct{}) error {
@@ -80,6 +81,165 @@ func (s *Service) RetrieveTasks(ctx context.Context, page, size int) (*TasksWith
 }
 
 func (s *Service) RetrieveTask(ctx context.Context, id string) (*task.Task, error) {
+	return s.retrieveTask(ctx, id)
+}
+
+func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, error) {
+	t.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
+
+	now := time.Now()
+
+	t.State = task.Scheduled
+	t.ScheduledAt = &now
+	t.Result = ""
+	t.Error = ""
+	t.StartedAt = nil
+	t.CancelledAt = nil
+	t.CompletedAt = nil
+	t.FailedAt = nil
+
+	if err := s.persistAndPublish(ctx, t, broker.SCHEDULED); err != nil {
+		return nil, err
+	}
+
+	return t, nil
+}
+
+func (s *Service) CancelTask(ctx context.Context, id string) (*task.Task, error) {
+	taskLock := s.retrieveTaskLock(id)
+
+	taskLock.Lock()
+	defer taskLock.Unlock()
+
+	t, err := s.retrieveTask(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if t.State != task.Started {
+		return nil, task.ErrTaskNotCancellable
+	}
+
+	now := time.Now()
+
+	t.State = task.Cancelled
+	t.CancelledAt = &now
+
+	if err := s.persistAndPublish(ctx, t, broker.CANCELLED); err != nil {
+		return nil, err
+	}
+
+	return t, nil
+}
+
+func (s *Service) RestartTask(ctx context.Context, id string) (*task.Task, error) {
+	taskLock := s.retrieveTaskLock(id)
+
+	taskLock.Lock()
+	defer taskLock.Unlock()
+
+	t, err := s.retrieveTask(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if t.State == task.Scheduled || t.State == task.Started {
+		return nil, task.ErrTaskNotRestartable
+	}
+
+	if len(t.Volumes) > 0 {
+		var cleanedVolumes []string
+		for _, v := range t.Volumes {
+			parts := strings.Split(v, ":")
+			if len(parts) == 2 {
+				cleanedVolumes = append(cleanedVolumes, parts[1])
+			} else {
+				cleanedVolumes = append(cleanedVolumes, v)
+			}
+		}
+		t.Volumes = cleanedVolumes
+	}
+
+	for _, pre := range t.Pre {
+		var cleanedPreVolumes []string
+		for _, v := range pre.Volumes {
+			parts := strings.Split(v, ":")
+			if len(parts) == 2 {
+				cleanedPreVolumes = append(cleanedPreVolumes, parts[1])
+			} else {
+				cleanedPreVolumes = append(cleanedPreVolumes, v)
+			}
+		}
+		pre.Volumes = cleanedPreVolumes
+	}
+
+	for _, post := range t.Post {
+		var cleanedPostVolumes []string
+		for _, v := range post.Volumes {
+			parts := strings.Split(v, ":")
+			if len(parts) == 2 {
+				cleanedPostVolumes = append(cleanedPostVolumes, parts[1])
+			} else {
+				cleanedPostVolumes = append(cleanedPostVolumes, v)
+			}
+		}
+		post.Volumes = cleanedPostVolumes
+	}
+
+	now := time.Now()
+
+	t.State = task.Scheduled
+	t.ScheduledAt = &now
+	t.Result = ""
+	t.Error = ""
+	t.StartedAt = nil
+	t.CancelledAt = nil
+	t.CompletedAt = nil
+	t.FailedAt = nil
+
+	if t.Retry != nil {
+		t.Retry.Attempts = 0
+	}
+
+	if err := s.persistAndPublish(ctx, t, broker.SCHEDULED); err != nil {
+		return nil, err
+	}
+
+	return t, nil
+}
+
+func (s *Service) handleTask(ctx context.Context, data []byte) error {
+	t, _ := task.Factory(data)
+
+	switch t.State {
+	case task.Started:
+		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+			return err
+		}
+
+		return nil
+	case task.Completed:
+		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+			return err
+		}
+
+		s.removeTaskLock(t.ID)
+
+		return nil
+	case task.Failed:
+		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+			return err
+		}
+
+		s.removeTaskLock(t.ID)
+
+		return nil
+	}
+
+	return nil
+}
+
+func (s *Service) retrieveTask(ctx context.Context, id string) (*task.Task, error) {
 	bs, err := s.readwriter.ReadById(ctx, id)
 	if err != nil && errors.Is(err, reader.ErrRecordNotFound) {
 		return nil, task.ErrTaskNotFound
@@ -90,100 +250,48 @@ func (s *Service) RetrieveTask(ctx context.Context, id string) (*task.Task, erro
 	return task.Factory(bs)
 }
 
-func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, error) {
-	now := time.Now()
-
-	t.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
-	t.State = task.Scheduled
-	t.ScheduledAt = &now
-
+func (s *Service) persistAndPublish(ctx context.Context, t *task.Task, defaultQueueName string) error {
 	bs, _ := json.Marshal(t)
 
-	name := t.Queue
-	if len(name) == 0 {
-		name = broker.SCHEDULED
+	if err := s.readwriter.Write(ctx, t.ID, bs); err != nil {
+		return err
+	}
+
+	queueName := t.Queue
+	if len(queueName) == 0 {
+		queueName = defaultQueueName
 	}
 
 	opts := []broker.PublishOption{
-		broker.PublishWithQueue(name),
+		broker.PublishWithQueue(queueName),
 	}
 
 	if err := s.broker.Publish(ctx, bs, opts...); err != nil {
-		return nil, err
+		return err
 	}
-
-	if err := s.readwriter.Write(ctx, t.ID, bs); err != nil {
-		return nil, err
-	}
-
-	return t, nil
-}
-
-func (s *Service) CancelTask(ctx context.Context, t *task.Task) (*task.Task, error) {
-	now := time.Now()
-
-	t.State = task.Cancelled
-	t.CancelledAt = &now
-
-	bs, _ := json.Marshal(t)
-
-	name := t.Queue
-	if len(name) == 0 {
-		name = broker.CANCELLED
-	}
-
-	opts := []broker.PublishOption{
-		broker.PublishWithQueue(name),
-	}
-
-	if err := s.broker.Publish(ctx, bs, opts...); err != nil {
-		return nil, err
-	}
-
-	if err := s.readwriter.Write(ctx, t.ID, bs); err != nil {
-		return nil, err
-	}
-
-	return t, nil
-}
-
-func (s *Service) handleTask(ctx context.Context, data []byte) error {
-	t, _ := task.Factory(data)
-
-	if t.State != task.Failed || t.Retry == nil || t.Retry.Attempts >= t.Retry.Limit {
-		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	t.Retry.Attempts = t.Retry.Attempts + 1
-	t.State = task.Scheduled
-	t.Error = ""
-
-	bs, _ := json.Marshal(t)
-
-	name := t.Queue
-	if len(name) == 0 {
-		name = broker.SCHEDULED
-	}
-
-	dur, _ := time.ParseDuration(t.Retry.InitialDelay)
-
-	go func() {
-		delay := dur * time.Duration(math.Pow(float64(2), float64(t.Retry.Attempts-1)))
-		time.Sleep(delay)
-		opts := []broker.PublishOption{
-			broker.PublishWithQueue(name),
-		}
-		if err := s.broker.Publish(ctx, bs, opts...); err != nil {
-			// span
-			slog.ErrorContext(ctx, "failed to retry task")
-		}
-	}()
 
 	return nil
+}
+
+// TODO: needs distributed locking?
+func (s *Service) retrieveTaskLock(id string) *sync.RWMutex {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	lock, ok := s.locks[id]
+	if !ok {
+		lock = &sync.RWMutex{}
+		s.locks[id] = lock
+	}
+
+	return lock
+}
+
+func (s *Service) removeTaskLock(id string) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	delete(s.locks, id)
 }
 
 func New(b broker.Broker, rw readwriter.ReadWriter, qs map[string]int) *Service {
@@ -191,5 +299,7 @@ func New(b broker.Broker, rw readwriter.ReadWriter, qs map[string]int) *Service 
 		broker:     b,
 		readwriter: rw,
 		queues:     qs,
+		locks:      map[string]*sync.RWMutex{},
+		mtx:        sync.RWMutex{},
 	}
 }
