@@ -50,6 +50,8 @@ func (s *Service) Start(ch chan struct{}) error {
 		close(exit)
 	}
 
+	s.runner.Close()
+
 	return nil
 }
 
