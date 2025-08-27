@@ -124,6 +124,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	for _, pre := range t.Pre {
 		pre.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
 		pre.Volumes = t.Volumes
+		pre.Networks = t.Networks
 		result, err := s.run(ctx, pre)
 		finished := time.Now()
 		if err != nil {
@@ -171,6 +172,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	for _, post := range t.Post {
 		post.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
 		post.Volumes = t.Volumes
+		post.Networks = t.Networks
 		result, err := s.run(ctx, post)
 		finished := time.Now()
 		if err != nil {
@@ -224,6 +226,7 @@ func (s *Service) run(ctx context.Context, t *task.Task) (string, error) {
 		runner.RunWithCmd(t.Cmd),
 		runner.RunWithEnv(t.Env),
 		runner.RunWithVolumes(t.Volumes),
+		runner.RunWithNetworks(t.Networks),
 	}
 
 	return s.runner.Run(ctx, runOpts...)
