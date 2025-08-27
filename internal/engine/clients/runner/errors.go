@@ -7,4 +7,5 @@ var (
 	ErrVolumeNotFound    = errors.New("volume not found")
 	ErrInvalidVolumeName = errors.New("invalid volume name")
 	ErrBadExitCode       = errors.New("bad exit code")
+	ErrRunnerClosing     = errors.New("runner is closing")
 )

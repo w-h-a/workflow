@@ -25,8 +25,8 @@ type dockerRunner struct {
 	images  map[string]bool
 	tasks   map[string]string
 	mtx     sync.RWMutex
-	ctx     context.Context
-	cancel  context.CancelFunc
+	exit    chan struct{}
+	once    sync.Once
 	wg      sync.WaitGroup
 }
 
@@ -163,16 +163,14 @@ func (r *dockerRunner) DeleteVolume(ctx context.Context, opts ...runner.DeleteVo
 }
 
 func (r *dockerRunner) Close() {
-	r.cancel()
-	r.wg.Wait()
-	close(r.sem)
+	r.once.Do(func() {
+		close(r.exit)
+		r.wg.Wait()
+		close(r.sem)
+	})
 }
 
 func (r *dockerRunner) pullImage(ctx context.Context, tag string) error {
-	if r.ctx.Err() != nil {
-		return r.ctx.Err()
-	}
-
 	r.mtx.RLock()
 	if _, ok := r.images[tag]; ok {
 		r.mtx.RUnlock()
@@ -183,8 +181,8 @@ func (r *dockerRunner) pullImage(ctx context.Context, tag string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-r.ctx.Done():
-		return r.ctx.Err()
+	case <-r.exit:
+		return runner.ErrRunnerClosing
 	case r.sem <- struct{}{}:
 		r.wg.Add(1)
 		defer func() {
@@ -266,8 +264,6 @@ func NewRunner(opts ...runner.Option) runner.Runner {
 		panic(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	dr := &dockerRunner{
 		options: options,
 		client:  c,
@@ -275,8 +271,8 @@ func NewRunner(opts ...runner.Option) runner.Runner {
 		images:  map[string]bool{},
 		tasks:   map[string]string{},
 		mtx:     sync.RWMutex{},
-		ctx:     ctx,
-		cancel:  cancel,
+		exit:    make(chan struct{}),
+		once:    sync.Once{},
 		wg:      sync.WaitGroup{},
 	}
 
