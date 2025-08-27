@@ -21,9 +21,13 @@ import (
 type dockerRunner struct {
 	options runner.Options
 	client  *client.Client
+	sem     chan struct{}
 	images  map[string]bool
 	tasks   map[string]string
 	mtx     sync.RWMutex
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (string, error) {
@@ -158,40 +162,74 @@ func (r *dockerRunner) DeleteVolume(ctx context.Context, opts ...runner.DeleteVo
 	return nil
 }
 
-func (r *dockerRunner) pullImage(ctx context.Context, tag string) error {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
+func (r *dockerRunner) Close() {
+	r.cancel()
+	r.wg.Wait()
+	close(r.sem)
+}
 
+func (r *dockerRunner) pullImage(ctx context.Context, tag string) error {
+	if r.ctx.Err() != nil {
+		return r.ctx.Err()
+	}
+
+	r.mtx.RLock()
 	if _, ok := r.images[tag]; ok {
+		r.mtx.RUnlock()
 		return nil
 	}
+	r.mtx.RUnlock()
 
-	images, err := r.client.ImageList(ctx, image.ListOptions{All: true})
-	if err != nil {
-		return err
-	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-r.ctx.Done():
+		return r.ctx.Err()
+	case r.sem <- struct{}{}:
+		r.wg.Add(1)
+		defer func() {
+			r.wg.Done()
+			<-r.sem
+		}()
 
-	for _, img := range images {
-		for _, t := range img.RepoTags {
-			if t == tag {
-				r.images[t] = true
-				return nil
+		r.mtx.RLock()
+		if _, ok := r.images[tag]; ok {
+			r.mtx.RUnlock()
+			return nil
+		}
+		r.mtx.RUnlock()
+
+		images, err := r.client.ImageList(ctx, image.ListOptions{All: true})
+		if err != nil {
+			return err
+		}
+
+		for _, img := range images {
+			for _, t := range img.RepoTags {
+				if t == tag {
+					r.mtx.Lock()
+					r.images[t] = true
+					r.mtx.Unlock()
+					return nil
+				}
 			}
 		}
+
+		reader, err := r.client.ImagePull(ctx, tag, image.PullOptions{})
+		if err != nil {
+			return err
+		}
+
+		defer reader.Close()
+
+		if _, err := io.Copy(os.Stdout, reader); err != nil {
+			return err
+		}
+
+		r.mtx.Lock()
+		r.images[tag] = true
+		r.mtx.Unlock()
 	}
-
-	reader, err := r.client.ImagePull(ctx, tag, image.PullOptions{})
-	if err != nil {
-		return err
-	}
-
-	defer reader.Close()
-
-	if _, err := io.Copy(os.Stdout, reader); err != nil {
-		return err
-	}
-
-	r.images[tag] = true
 
 	return nil
 }
@@ -228,12 +266,18 @@ func NewRunner(opts ...runner.Option) runner.Runner {
 		panic(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	dr := &dockerRunner{
 		options: options,
 		client:  c,
+		sem:     make(chan struct{}, 1),
 		images:  map[string]bool{},
 		tasks:   map[string]string{},
 		mtx:     sync.RWMutex{},
+		ctx:     ctx,
+		cancel:  cancel,
+		wg:      sync.WaitGroup{},
 	}
 
 	return dr
