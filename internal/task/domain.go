@@ -31,6 +31,7 @@ type Task struct {
 	Pre         []*Task    `json:"pre,omitempty"`
 	Post        []*Task    `json:"post,omitempty"`
 	Volumes     []string   `json:"volumes,omitempty"`
+	Networks    []string   `json:"networks,omitempty"`
 	Retry       *Retry     `json:"retry,omitempty"`
 	Timeout     string     `json:"timeout,omitempty"`
 }

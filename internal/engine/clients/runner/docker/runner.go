@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -65,7 +66,15 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		Mounts:          mounts,
 	}
 
-	rsp, err := r.client.ContainerCreate(ctx, &cc, &hc, nil, nil, "")
+	nc := network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{},
+	}
+
+	for _, nw := range options.Networks {
+		nc.EndpointsConfig[nw] = &network.EndpointSettings{NetworkID: nw}
+	}
+
+	rsp, err := r.client.ContainerCreate(ctx, &cc, &hc, &nc, nil, "")
 	if err != nil {
 		// span
 		slog.ErrorContext(ctx, "failed to create container", "image", options.Image, "error", err)

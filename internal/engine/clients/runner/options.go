@@ -30,12 +30,13 @@ func NewOptions(opts ...Option) Options {
 type RunOption func(o *RunOptions)
 
 type RunOptions struct {
-	ID      string
-	Image   string
-	Cmd     []string
-	Env     []string
-	Volumes []string
-	Context context.Context
+	ID       string
+	Image    string
+	Cmd      []string
+	Env      []string
+	Volumes  []string
+	Networks []string
+	Context  context.Context
 }
 
 func RunWithID(id string) RunOption {
@@ -65,6 +66,12 @@ func RunWithEnv(env []string) RunOption {
 func RunWithVolumes(volumes []string) RunOption {
 	return func(o *RunOptions) {
 		o.Volumes = volumes
+	}
+}
+
+func RunWithNetworks(networks []string) RunOption {
+	return func(o *RunOptions) {
+		o.Networks = networks
 	}
 }
 
