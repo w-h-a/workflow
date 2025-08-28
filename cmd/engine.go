@@ -34,25 +34,26 @@ func StartEngine(ctx *cli.Context) error {
 	numServices := 0
 
 	// worker
+	var workerServer serverv2.Server
 	var w *worker.Service
 	if config.Mode() == "standalone" || config.Mode() == "worker" {
 		runnerClient := initRunner()
 
-		w = engine.NewWorker(
+		workerServer, w = engine.NewWorker(
 			brokerClient,
 			runnerClient,
 		)
 
-		numServices++
+		numServices += 2
 	}
 
 	// coordinator
-	var httpServer serverv2.Server
+	var coordinatorServer serverv2.Server
 	var c *coordinator.Service
 	if config.Mode() == "standalone" || config.Mode() == "coordinator" {
 		readwriterClient := initReadWriter()
 
-		httpServer, c = engine.NewCoordinator(
+		coordinatorServer, c = engine.NewCoordinator(
 			brokerClient,
 			readwriterClient,
 		)
@@ -74,6 +75,13 @@ func StartEngine(ctx *cli.Context) error {
 			slog.InfoContext(ctx.Context, "starting worker")
 			ch <- w.Start(stop)
 		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			slog.InfoContext(ctx.Context, "starting worker http server", "address", config.WorkerHttp())
+			ch <- workerServer.Start()
+		}()
 	}
 
 	// start coordinator
@@ -91,8 +99,8 @@ func StartEngine(ctx *cli.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			slog.InfoContext(ctx.Context, "starting http server", "address", config.HttpAddress())
-			ch <- httpServer.Start()
+			slog.InfoContext(ctx.Context, "starting coordinator http server", "address", config.CoordinatorHttp())
+			ch <- coordinatorServer.Start()
 		}()
 	}
 

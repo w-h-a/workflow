@@ -21,9 +21,10 @@ type config struct {
 	env                string
 	name               string
 	version            string
-	queues             map[string]int
-	httpAddress        string
 	mode               string
+	coordinatorHttp    string
+	workerHttp         string
+	workerQueues       map[string]int
 	broker             string
 	brokerLocation     string
 	runner             string
@@ -38,9 +39,10 @@ func New() {
 			env:                "dev",
 			name:               "workflow",
 			version:            "0.1.0-alpha.0",
-			queues:             map[string]int{broker.SCHEDULED: 1, broker.CANCELLED: 1},
-			httpAddress:        ":4000",
 			mode:               "standalone",
+			coordinatorHttp:    ":4000",
+			workerHttp:         ":4001",
+			workerQueues:       map[string]int{broker.SCHEDULED: 1, broker.CANCELLED: 1},
 			broker:             "memory",
 			brokerLocation:     "",
 			runner:             "docker",
@@ -64,6 +66,21 @@ func New() {
 			instance.version = version
 		}
 
+		mode := os.Getenv("MODE")
+		if len(mode) > 0 {
+			instance.mode = mode
+		}
+
+		httpAddress := os.Getenv("HTTP_ADDRESS")
+		if len(httpAddress) > 0 {
+			if instance.mode == "coordinator" {
+				instance.coordinatorHttp = httpAddress
+			}
+			if instance.mode == "worker" {
+				instance.workerHttp = httpAddress
+			}
+		}
+
 		qs := os.Getenv("QUEUES")
 		if len(qs) > 0 {
 			for _, q := range strings.Split(qs, ",") {
@@ -83,18 +100,8 @@ func New() {
 				if err != nil {
 					panic("queue concurrency is not an integer")
 				}
-				instance.queues[name] = concurrency
+				instance.workerQueues[name] = concurrency
 			}
-		}
-
-		httpAddress := os.Getenv("HTTP_ADDRESS")
-		if len(httpAddress) > 0 {
-			instance.httpAddress = httpAddress
-		}
-
-		mode := os.Getenv("MODE")
-		if len(mode) > 0 {
-			instance.mode = mode
 		}
 
 		b := os.Getenv("BROKER")
@@ -165,32 +172,40 @@ func Version() string {
 	return instance.version
 }
 
-func Queues() map[string]int {
-	if instance == nil {
-		panic("cfg is nil")
-	}
-
-	queues := make(map[string]int, len(instance.queues))
-
-	maps.Copy(queues, instance.queues)
-
-	return queues
-}
-
-func HttpAddress() string {
-	if instance == nil {
-		panic("cfg is nil")
-	}
-
-	return instance.httpAddress
-}
-
 func Mode() string {
 	if instance == nil {
 		panic("cfg is nil")
 	}
 
 	return instance.mode
+}
+
+func CoordinatorHttp() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.coordinatorHttp
+}
+
+func WorkerHttp() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.workerHttp
+}
+
+func WorkerQueues() map[string]int {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	queues := make(map[string]int, len(instance.workerQueues))
+
+	maps.Copy(queues, instance.workerQueues)
+
+	return queues
 }
 
 func Broker() string {

@@ -12,9 +12,12 @@ type memoryBroker struct {
 	options broker.Options
 	queues  map[string]chan []byte
 	mtx     sync.RWMutex
+	exit    chan struct{}
+	wg      sync.WaitGroup
+	once    sync.Once
 }
 
-func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.Context, data []byte) error, opts ...broker.SubscribeOption) (chan struct{}, error) {
+func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.Context, data []byte) error, opts ...broker.SubscribeOption) error {
 	options := broker.NewSubscribeOptions(opts...)
 
 	// span
@@ -28,12 +31,13 @@ func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.
 	}
 	b.mtx.Unlock()
 
-	ch := make(chan struct{})
-
+	b.wg.Add(1)
 	go func() {
+		defer b.wg.Done()
+
 		for {
 			select {
-			case <-ch:
+			case <-b.exit:
 				return
 			case data := <-q:
 				if err := callback(ctx, data); err != nil {
@@ -44,7 +48,7 @@ func (b *memoryBroker) Subscribe(ctx context.Context, callback func(ctx context.
 		}
 	}()
 
-	return ch, nil
+	return nil
 }
 
 func (b *memoryBroker) Publish(ctx context.Context, data []byte, opts ...broker.PublishOption) error {
@@ -66,6 +70,26 @@ func (b *memoryBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 	return nil
 }
 
+func (b *memoryBroker) Close(ctx context.Context) error {
+	done := make(chan struct{})
+
+	b.once.Do(func() {
+		close(b.exit)
+
+		go func() {
+			b.wg.Wait()
+			close(done)
+		}()
+	})
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+		return nil
+	}
+}
+
 func NewBroker(opts ...broker.Option) broker.Broker {
 	options := broker.NewOptions(opts...)
 
@@ -73,6 +97,9 @@ func NewBroker(opts ...broker.Option) broker.Broker {
 		options: options,
 		queues:  map[string]chan []byte{},
 		mtx:     sync.RWMutex{},
+		exit:    make(chan struct{}),
+		wg:      sync.WaitGroup{},
+		once:    sync.Once{},
 	}
 
 	return b
