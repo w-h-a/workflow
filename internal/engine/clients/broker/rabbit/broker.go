@@ -89,7 +89,6 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 				continue
 			}
 
-		consumerLoop:
 			for {
 				select {
 				case <-b.exit:
@@ -97,7 +96,7 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 					return
 				case msg, ok := <-msgs:
 					if !ok {
-						break consumerLoop
+						break
 					}
 
 					if err := callback(ctx, msg.Body); err != nil {
