@@ -113,7 +113,22 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 			runner.CreateVolumeWithName(volName),
 		}
 		if err := s.runner.CreateVolume(ctx, opts...); err != nil {
-			return err
+			finished := time.Now()
+			t.Error = err.Error()
+			t.State = task.Failed
+			t.FailedAt = &finished
+
+			failedBs, _ := json.Marshal(t)
+
+			failedOpts := []broker.PublishOption{
+				broker.PublishWithQueue(broker.FAILED),
+			}
+
+			if err := s.broker.Publish(ctx, failedBs, failedOpts...); err != nil {
+				return err
+			}
+
+			return nil
 		}
 		defer func(volName string) {
 			opts := []runner.DeleteVolumeOption{

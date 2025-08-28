@@ -118,6 +118,7 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 			}
 		}
 
+		// span
 		slog.ErrorContext(ctx, "subscriber failed to connect after max attempts", "queue", options.Queue, "maxAttempts", maxAttempts)
 	}()
 
