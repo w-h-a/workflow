@@ -54,7 +54,7 @@ func NewCoordinator(
 
 	// create http server
 	httpOpts := []serverv2.ServerOption{
-		serverv2.ServerWithAddress(config.HttpAddress()),
+		serverv2.ServerWithAddress(config.CoordinatorHttp()),
 	}
 
 	httpOpts = append(httpOpts, opts...)
@@ -78,12 +78,46 @@ func NewCoordinator(
 func NewWorker(
 	brokerClient broker.Broker,
 	runnerClient runner.Runner,
-) *worker.Service {
+) (serverv2.Server, *worker.Service) {
+	// services
 	workerService := worker.New(
 		runnerClient,
 		brokerClient,
-		config.Queues(),
+		config.WorkerQueues(),
 	)
 
-	return workerService
+	// base server options
+	opts := []serverv2.ServerOption{
+		serverv2.ServerWithNamespace(config.Env()),
+		serverv2.ServerWithName(config.Name()),
+		serverv2.ServerWithVersion(config.Version()),
+	}
+
+	// create http router
+	router := mux.NewRouter()
+
+	httpStatus := httphandlers.NewStatusHandler()
+	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
+
+	// create http server
+	httpOpts := []serverv2.ServerOption{
+		serverv2.ServerWithAddress(config.WorkerHttp()),
+	}
+
+	httpOpts = append(httpOpts, opts...)
+
+	httpServer := httpserver.NewServer(httpOpts...)
+
+	handler := otelhttp.NewHandler(
+		router,
+		"",
+		otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string { return r.URL.Path }),
+		otelhttp.WithTracerProvider(otel.GetTracerProvider()),
+		otelhttp.WithPropagators(otel.GetTextMapPropagator()),
+		otelhttp.WithFilter(func(r *http.Request) bool { return r.URL.Path != "/status" }),
+	)
+
+	httpServer.Handle(handler)
+
+	return httpServer, workerService
 }

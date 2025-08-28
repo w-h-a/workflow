@@ -24,33 +24,41 @@ type Service struct {
 }
 
 func (s *Service) Start(ch chan struct{}) error {
-	var exits []chan struct{}
-
 	for name, concurrency := range s.queues {
 		for range concurrency {
 			opts := []broker.SubscribeOption{
 				broker.SubscribeWithQueue(name),
 			}
 
-			exit, err := s.broker.Subscribe(context.Background(), s.handleTask, opts...)
-			if err != nil {
-				for _, exit := range exits {
-					close(exit)
-				}
+			if err := s.broker.Subscribe(context.Background(), s.handleTask, opts...); err != nil {
 				return err
 			}
-
-			exits = append(exits, exit)
 		}
 	}
 
 	<-ch
 
-	for _, exit := range exits {
-		close(exit)
-	}
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer shutdownCancel()
 
-	s.runner.Close()
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		if err := s.broker.Close(shutdownCtx); err != nil {
+			slog.ErrorContext(shutdownCtx, "broker shutdown failed", "error", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if err := s.runner.Close(shutdownCtx); err != nil {
+			slog.ErrorContext(shutdownCtx, "runner shutdown failed", "error", err)
+		}
+	}()
+
+	wg.Wait()
 
 	return nil
 }

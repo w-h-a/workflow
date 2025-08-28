@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -171,12 +172,43 @@ func (r *dockerRunner) DeleteVolume(ctx context.Context, opts ...runner.DeleteVo
 	return nil
 }
 
-func (r *dockerRunner) Close() {
+func (r *dockerRunner) Close(ctx context.Context) error {
+	done := make(chan struct{})
+
 	r.once.Do(func() {
+		slog.InfoContext(ctx, "starting graceful shutdown of docker client")
+
 		close(r.exit)
-		r.wg.Wait()
-		close(r.sem)
+
+		go func() {
+			r.wg.Wait()
+
+			toRemove := map[string]string{}
+
+			r.mtx.RLock()
+			maps.Copy(toRemove, r.tasks)
+			r.mtx.RUnlock()
+
+			for id, containerID := range toRemove {
+				if err := r.remove(ctx, id); err != nil {
+					slog.ErrorContext(ctx, "failed to remove container during close", "containerID", containerID, "error", err)
+				}
+			}
+
+			close(r.sem)
+			close(done)
+		}()
 	})
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+	}
+
+	slog.InfoContext(ctx, "graceful shutdown of docker client complete")
+
+	return nil
 }
 
 func (r *dockerRunner) pullImage(ctx context.Context, tag string) error {
@@ -253,6 +285,11 @@ func (r *dockerRunner) remove(ctx context.Context, id string) error {
 
 	// span
 	slog.InfoContext(ctx, "attempting to remove container", "containerID", containerID)
+
+	if err := r.client.ContainerStop(ctx, containerID, container.StopOptions{}); err != nil {
+		// span
+		return err
+	}
 
 	if err := r.client.ContainerRemove(ctx, containerID, container.RemoveOptions{RemoveVolumes: false, RemoveLinks: false, Force: true}); err != nil {
 		// span
