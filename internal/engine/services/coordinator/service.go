@@ -94,7 +94,7 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 	t.CompletedAt = nil
 	t.FailedAt = nil
 
-	if err := s.persistAndPublish(ctx, t, broker.SCHEDULED); err != nil {
+	if err := s.persistAndPublish(ctx, t, string(task.Scheduled)); err != nil {
 		return nil, err
 	}
 
@@ -121,7 +121,7 @@ func (s *Service) CancelTask(ctx context.Context, id string) (*task.Task, error)
 	t.State = task.Cancelled
 	t.CancelledAt = &now
 
-	if err := s.persistAndPublish(ctx, t, broker.CANCELLED); err != nil {
+	if err := s.persistAndPublish(ctx, t, string(task.Cancelled)); err != nil {
 		return nil, err
 	}
 
@@ -197,11 +197,19 @@ func (s *Service) RestartTask(ctx context.Context, id string) (*task.Task, error
 		t.Retry.Attempts = 0
 	}
 
-	if err := s.persistAndPublish(ctx, t, broker.SCHEDULED); err != nil {
+	if err := s.persistAndPublish(ctx, t, string(task.Scheduled)); err != nil {
 		return nil, err
 	}
 
 	return t, nil
+}
+
+func (s *Service) CheckHealth(ctx context.Context) error {
+	if err := s.readwriter.CheckHealth(ctx); err != nil {
+		return err
+	}
+
+	return s.broker.CheckHealth(ctx)
 }
 
 func (s *Service) handleTask(ctx context.Context, data []byte) error {

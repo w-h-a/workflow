@@ -10,6 +10,7 @@ import (
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
+	"github.com/w-h-a/workflow/internal/task"
 )
 
 var (
@@ -44,7 +45,7 @@ func New() {
 			mode:               "standalone",
 			coordinatorHttp:    ":4000",
 			workerHttp:         ":4001",
-			workerQueues:       map[string]int{broker.SCHEDULED: 1, broker.CANCELLED: 1},
+			workerQueues:       map[string]int{string(task.Scheduled): 1, string(task.Cancelled): 1},
 			broker:             "memory",
 			brokerLocation:     "",
 			runner:             "docker",

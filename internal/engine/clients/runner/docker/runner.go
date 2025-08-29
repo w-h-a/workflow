@@ -175,6 +175,11 @@ func (r *dockerRunner) DeleteVolume(ctx context.Context, opts ...runner.DeleteVo
 	return nil
 }
 
+func (r *dockerRunner) CheckHealth(ctx context.Context) error {
+	_, err := r.client.Ping(ctx)
+	return err
+}
+
 func (r *dockerRunner) Close(ctx context.Context) error {
 	done := make(chan struct{})
 

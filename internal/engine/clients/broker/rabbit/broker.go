@@ -171,6 +171,22 @@ func (b *rabbitBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 	return nil
 }
 
+func (b *rabbitBroker) CheckHealth(ctx context.Context) error {
+	conn, err := b.getConnection()
+	if err != nil {
+		return err
+	}
+
+	ch, err := conn.Channel()
+	if err != nil {
+		return err
+	}
+
+	defer ch.Close()
+
+	return nil
+}
+
 func (b *rabbitBroker) Close(ctx context.Context) error {
 	done := make(chan struct{})
 

@@ -102,6 +102,10 @@ func (rw *postgresReadWriter) ReadById(ctx context.Context, id string, opts ...r
 	return record.Value, nil
 }
 
+func (rw *postgresReadWriter) CheckHealth(ctx context.Context) error {
+	return rw.conn.PingContext(ctx)
+}
+
 func (rw *postgresReadWriter) Write(ctx context.Context, id string, data []byte, opts ...writer.WriteOption) error {
 	if _, err := rw.conn.ExecContext(
 		ctx,
