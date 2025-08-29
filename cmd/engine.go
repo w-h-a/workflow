@@ -143,6 +143,7 @@ func initBroker() broker.Broker {
 	case string(broker.Rabbit):
 		return rabbit.NewBroker(
 			broker.WithLocation(config.BrokerLocation()),
+			broker.WithDurable(config.BrokerDurable()),
 		)
 	default:
 		return memorybroker.NewBroker()
