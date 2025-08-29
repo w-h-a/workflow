@@ -57,6 +57,10 @@ func (rw *memoryReadWriter) ReadById(ctx context.Context, id string, opts ...rea
 	return append([]byte{}, data...), nil
 }
 
+func (rw *memoryReadWriter) CheckHealth(ctx context.Context) error {
+	return nil
+}
+
 func (rw *memoryReadWriter) Write(ctx context.Context, id string, data []byte, opts ...writer.WriteOption) error {
 	rw.mtx.Lock()
 	defer rw.mtx.Unlock()

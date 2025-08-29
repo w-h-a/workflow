@@ -63,6 +63,14 @@ func (s *Service) Start(ch chan struct{}) error {
 	return nil
 }
 
+func (s *Service) CheckHealth(ctx context.Context) error {
+	if err := s.runner.CheckHealth(ctx); err != nil {
+		return err
+	}
+
+	return s.broker.CheckHealth(ctx)
+}
+
 func (s *Service) handleTask(ctx context.Context, data []byte) error {
 	t, _ := task.Factory(data)
 
@@ -98,7 +106,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	startedBs, _ := json.Marshal(t)
 
 	startedOpts := []broker.PublishOption{
-		broker.PublishWithQueue(broker.STARTED),
+		broker.PublishWithQueue(string(task.Started)),
 	}
 
 	if err := s.broker.Publish(ctx, startedBs, startedOpts...); err != nil {
@@ -121,7 +129,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 			failedBs, _ := json.Marshal(t)
 
 			failedOpts := []broker.PublishOption{
-				broker.PublishWithQueue(broker.FAILED),
+				broker.PublishWithQueue(string(task.Failed)),
 			}
 
 			if err := s.broker.Publish(ctx, failedBs, failedOpts...); err != nil {
@@ -158,7 +166,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 			failedBs, _ := json.Marshal(t)
 
 			failedOpts := []broker.PublishOption{
-				broker.PublishWithQueue(broker.FAILED),
+				broker.PublishWithQueue(string(task.Failed)),
 			}
 
 			if err := s.broker.Publish(ctx, failedBs, failedOpts...); err != nil {
@@ -182,7 +190,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 		failedBs, _ := json.Marshal(t)
 
 		failedOpts := []broker.PublishOption{
-			broker.PublishWithQueue(broker.FAILED),
+			broker.PublishWithQueue(string(task.Failed)),
 		}
 
 		if err := s.broker.Publish(ctx, failedBs, failedOpts...); err != nil {
@@ -206,7 +214,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 			failedBs, _ := json.Marshal(t)
 
 			failedOpts := []broker.PublishOption{
-				broker.PublishWithQueue(broker.FAILED),
+				broker.PublishWithQueue(string(task.Failed)),
 			}
 
 			if err := s.broker.Publish(ctx, failedBs, failedOpts...); err != nil {
@@ -225,7 +233,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	completedBs, _ := json.Marshal(t)
 
 	completedOpts := []broker.PublishOption{
-		broker.PublishWithQueue(broker.COMPLETED),
+		broker.PublishWithQueue(string(task.Completed)),
 	}
 
 	if err := s.broker.Publish(ctx, completedBs, completedOpts...); err != nil {

@@ -13,6 +13,7 @@ import (
 	httphandlers "github.com/w-h-a/workflow/internal/engine/handlers/http"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
 	"github.com/w-h-a/workflow/internal/engine/services/worker"
+	"github.com/w-h-a/workflow/internal/task"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 )
@@ -26,9 +27,9 @@ func NewCoordinator(
 		brokerClient,
 		readwriterClient,
 		map[string]int{
-			broker.STARTED:   1,
-			broker.COMPLETED: 1,
-			broker.FAILED:    1,
+			string(task.Started):   1,
+			string(task.Completed): 1,
+			string(task.Failed):    1,
 		},
 	)
 
@@ -42,7 +43,7 @@ func NewCoordinator(
 	// create http router
 	router := mux.NewRouter()
 
-	httpStatus := httphandlers.NewStatusHandler()
+	httpStatus := httphandlers.NewStatusHandler(coordinatorService)
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
 	httpTasks := httphandlers.NewTasksHandler(coordinatorService)
@@ -96,7 +97,7 @@ func NewWorker(
 	// create http router
 	router := mux.NewRouter()
 
-	httpStatus := httphandlers.NewStatusHandler()
+	httpStatus := httphandlers.NewStatusHandler(workerService)
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
 	// create http server

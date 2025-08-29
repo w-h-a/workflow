@@ -70,6 +70,10 @@ func (b *memoryBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 	return nil
 }
 
+func (b *memoryBroker) CheckHealth(ctx context.Context) error {
+	return nil
+}
+
 func (b *memoryBroker) Close(ctx context.Context) error {
 	done := make(chan struct{})
 
