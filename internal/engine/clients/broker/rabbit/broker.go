@@ -51,7 +51,7 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 
 			if _, err := rbch.QueueDeclare(
 				options.Queue,
-				false, // durable
+				b.options.Durable,
 				false, // delete when unused
 				false, // exclusive
 				false, // no-wait,
@@ -145,7 +145,7 @@ func (b *rabbitBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 
 	if _, err := rbch.QueueDeclare(
 		options.Queue,
-		false, // durable
+		b.options.Durable,
 		false, // delete when unused
 		false, // exclusive
 		false, // no-wait,
@@ -154,16 +154,22 @@ func (b *rabbitBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 		return err
 	}
 
+	publishing := amqp.Publishing{
+		ContentType: "application/json",
+		Body:        data,
+	}
+
+	if b.options.Durable {
+		publishing.DeliveryMode = amqp.Persistent
+	}
+
 	if err := rbch.PublishWithContext(
 		ctx,
 		"",            // exchange
 		options.Queue, // routing key
 		false,         // mandatory
 		false,         // immediate
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        data,
-		},
+		publishing,
 	); err != nil {
 		return broker.ErrPublishing
 	}

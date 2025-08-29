@@ -28,6 +28,7 @@ type config struct {
 	workerQueues       map[string]int
 	broker             string
 	brokerLocation     string
+	brokerDurable      bool
 	runner             string
 	runnerHost         string
 	runnerRegistryUser string
@@ -48,6 +49,7 @@ func New() {
 			workerQueues:       map[string]int{string(task.Scheduled): 1, string(task.Cancelled): 1},
 			broker:             "memory",
 			brokerLocation:     "",
+			brokerDurable:      false,
 			runner:             "docker",
 			runnerHost:         "unix:///var/run/docker.sock",
 			runnerRegistryUser: "",
@@ -121,6 +123,11 @@ func New() {
 		brokerLocation := os.Getenv("BROKER_LOCATION")
 		if len(brokerLocation) > 0 {
 			instance.brokerLocation = brokerLocation
+		}
+
+		brokerDurable := os.Getenv("BROKER_DURABLE")
+		if brokerDurable == "true" {
+			instance.brokerDurable = true
 		}
 
 		r := os.Getenv("RUNNER")
@@ -237,6 +244,14 @@ func BrokerLocation() string {
 	}
 
 	return instance.brokerLocation
+}
+
+func BrokerDurable() bool {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.brokerDurable
 }
 
 func Runner() string {
