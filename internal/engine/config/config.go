@@ -29,6 +29,8 @@ type config struct {
 	brokerLocation     string
 	runner             string
 	runnerHost         string
+	runnerRegistryUser string
+	runnerRegistryPass string
 	readwriter         string
 	readwriterLocation string
 }
@@ -47,6 +49,8 @@ func New() {
 			brokerLocation:     "",
 			runner:             "docker",
 			runnerHost:         "unix:///var/run/docker.sock",
+			runnerRegistryUser: "",
+			runnerRegistryPass: "",
 			readwriter:         "memory",
 			readwriterLocation: "",
 		}
@@ -82,7 +86,7 @@ func New() {
 		}
 
 		qs := os.Getenv("QUEUES")
-		if len(qs) > 0 {
+		if len(qs) > 0 && instance.mode == "worker" {
 			for _, q := range strings.Split(qs, ",") {
 				q = strings.TrimSpace(q)
 				if len(q) == 0 {
@@ -130,6 +134,16 @@ func New() {
 		runnerHost := os.Getenv("RUNNER_HOST")
 		if len(runnerHost) > 0 {
 			instance.runnerHost = runnerHost
+		}
+
+		runnerRegistryUser := os.Getenv("RUNNER_REGISTRY_USER")
+		if len(runnerRegistryUser) > 0 {
+			instance.runnerRegistryUser = runnerRegistryUser
+		}
+
+		runnerRegistryPass := os.Getenv("RUNNER_REGISTRY_PASS")
+		if len(runnerRegistryPass) > 0 {
+			instance.runnerRegistryPass = runnerRegistryPass
 		}
 
 		rw := os.Getenv("READ_WRITER")
@@ -238,6 +252,22 @@ func RunnerHost() string {
 	}
 
 	return instance.runnerHost
+}
+
+func RunnerRegistryUser() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.runnerRegistryUser
+}
+
+func RunnerRegistryPass() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.runnerRegistryPass
 }
 
 func ReadWriter() string {

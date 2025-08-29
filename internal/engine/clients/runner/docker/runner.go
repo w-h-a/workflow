@@ -2,6 +2,8 @@ package docker
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"maps"
@@ -14,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -254,7 +257,15 @@ func (r *dockerRunner) pullImage(ctx context.Context, tag string) error {
 			}
 		}
 
-		reader, err := r.client.ImagePull(ctx, tag, image.PullOptions{})
+		authConfig := registry.AuthConfig{
+			Username: r.options.RegistryUser,
+			Password: r.options.RegistryPass,
+		}
+
+		encoded, _ := json.Marshal(authConfig)
+		registryAuth := base64.URLEncoding.EncodeToString(encoded)
+
+		reader, err := r.client.ImagePull(ctx, tag, image.PullOptions{RegistryAuth: registryAuth})
 		if err != nil {
 			return err
 		}

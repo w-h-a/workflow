@@ -1,0 +1,9 @@
+{
+    "name": "simple example",
+    "image": "ubuntu:mantic",
+    "cmd": [
+        "echo",
+        "-n",
+        "hello world"
+    ]
+}
