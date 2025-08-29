@@ -152,6 +152,8 @@ func initBroker() broker.Broker {
 func initRunner() runner.Runner {
 	return docker.NewRunner(
 		runner.WithHost(config.RunnerHost()),
+		runner.WithRegistryUser(config.RunnerRegistryUser()),
+		runner.WithRegistryPass(config.RunnerRegistryPass()),
 	)
 }
 

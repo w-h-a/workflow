@@ -5,13 +5,27 @@ import "context"
 type Option func(o *Options)
 
 type Options struct {
-	Host    string
-	Context context.Context
+	Host         string
+	RegistryUser string
+	RegistryPass string
+	Context      context.Context
 }
 
 func WithHost(host string) Option {
 	return func(o *Options) {
 		o.Host = host
+	}
+}
+
+func WithRegistryUser(user string) Option {
+	return func(o *Options) {
+		o.RegistryUser = user
+	}
+}
+
+func WithRegistryPass(pass string) Option {
+	return func(o *Options) {
+		o.RegistryPass = pass
 	}
 }
 
