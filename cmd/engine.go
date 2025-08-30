@@ -155,6 +155,7 @@ func initRunner() runner.Runner {
 		runner.WithHost(config.RunnerHost()),
 		runner.WithRegistryUser(config.RunnerRegistryUser()),
 		runner.WithRegistryPass(config.RunnerRegistryPass()),
+		runner.WithPruneInterval(config.RunnerPruneInterval()),
 	)
 }
 

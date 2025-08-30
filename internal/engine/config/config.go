@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
@@ -19,43 +20,45 @@ var (
 )
 
 type config struct {
-	env                string
-	name               string
-	version            string
-	mode               string
-	coordinatorHttp    string
-	workerHttp         string
-	workerQueues       map[string]int
-	broker             string
-	brokerLocation     string
-	brokerDurable      bool
-	runner             string
-	runnerHost         string
-	runnerRegistryUser string
-	runnerRegistryPass string
-	readwriter         string
-	readwriterLocation string
+	env                 string
+	name                string
+	version             string
+	mode                string
+	coordinatorHttp     string
+	workerHttp          string
+	workerQueues        map[string]int
+	broker              string
+	brokerLocation      string
+	brokerDurable       bool
+	runner              string
+	runnerHost          string
+	runnerRegistryUser  string
+	runnerRegistryPass  string
+	runnerPruneInterval time.Duration
+	readwriter          string
+	readwriterLocation  string
 }
 
 func New() {
 	once.Do(func() {
 		instance = &config{
-			env:                "dev",
-			name:               "workflow",
-			version:            "0.1.0-alpha.0",
-			mode:               "standalone",
-			coordinatorHttp:    ":4000",
-			workerHttp:         ":4001",
-			workerQueues:       map[string]int{string(task.Scheduled): 1, string(task.Cancelled): 1},
-			broker:             "memory",
-			brokerLocation:     "",
-			brokerDurable:      false,
-			runner:             "docker",
-			runnerHost:         "unix:///var/run/docker.sock",
-			runnerRegistryUser: "",
-			runnerRegistryPass: "",
-			readwriter:         "memory",
-			readwriterLocation: "",
+			env:                 "dev",
+			name:                "workflow",
+			version:             "0.1.0-alpha.0",
+			mode:                "standalone",
+			coordinatorHttp:     ":4000",
+			workerHttp:          ":4001",
+			workerQueues:        map[string]int{string(task.Scheduled): 1, string(task.Cancelled): 1},
+			broker:              "memory",
+			brokerLocation:      "",
+			brokerDurable:       false,
+			runner:              "docker",
+			runnerHost:          "unix:///var/run/docker.sock",
+			runnerRegistryUser:  "",
+			runnerRegistryPass:  "",
+			runnerPruneInterval: 24 * time.Hour,
+			readwriter:          "memory",
+			readwriterLocation:  "",
 		}
 
 		env := os.Getenv("ENV")
@@ -152,6 +155,18 @@ func New() {
 		runnerRegistryPass := os.Getenv("RUNNER_REGISTRY_PASS")
 		if len(runnerRegistryPass) > 0 {
 			instance.runnerRegistryPass = runnerRegistryPass
+		}
+
+		runnerPruneInterval := os.Getenv("RUNNER_PRUNE_INTERVAL")
+		if len(runnerPruneInterval) > 0 {
+			dur, err := time.ParseDuration(runnerPruneInterval)
+			if err != nil {
+				panic("invalid runner prune interval")
+			}
+			if dur <= 0 {
+				panic("runner prune interval must be a positive duration")
+			}
+			instance.runnerPruneInterval = dur
 		}
 
 		rw := os.Getenv("READ_WRITER")
@@ -284,6 +299,14 @@ func RunnerRegistryPass() string {
 	}
 
 	return instance.runnerRegistryPass
+}
+
+func RunnerPruneInterval() time.Duration {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.runnerPruneInterval
 }
 
 func ReadWriter() string {

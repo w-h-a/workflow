@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -310,6 +311,38 @@ func (r *dockerRunner) remove(ctx context.Context, id string) error {
 	return nil
 }
 
+func (r *dockerRunner) pruneImages() {
+	r.wg.Add(1)
+	defer r.wg.Done()
+
+	ticker := time.NewTicker(r.options.PruneInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			ctx := context.Background()
+			r.prune(ctx)
+		case <-r.exit:
+			return
+		}
+	}
+}
+
+func (r *dockerRunner) prune(ctx context.Context) {
+	filters := filters.NewArgs()
+
+	filters.Add("until", "24h")
+
+	pruneReport, err := r.client.ImagesPrune(ctx, filters)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to prune images", "error", err)
+		return
+	}
+
+	slog.InfoContext(ctx, "pruning complete", "images-deleted", len(pruneReport.ImagesDeleted), "space-reclaimed", pruneReport.SpaceReclaimed)
+}
+
 func NewRunner(opts ...runner.Option) runner.Runner {
 	options := runner.NewOptions(opts...)
 
@@ -332,6 +365,8 @@ func NewRunner(opts ...runner.Option) runner.Runner {
 		once:    sync.Once{},
 		wg:      sync.WaitGroup{},
 	}
+
+	go dr.pruneImages()
 
 	return dr
 }
