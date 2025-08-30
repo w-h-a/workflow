@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
@@ -19,11 +20,118 @@ import (
 	"github.com/w-h-a/workflow/internal/engine/config"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
 	"github.com/w-h-a/workflow/internal/engine/services/worker"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/host"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
+	globallog "go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/propagation"
+	logsdk "go.opentelemetry.io/otel/sdk/log"
+	metricsdk "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
 func StartEngine(ctx *cli.Context) error {
 	// cfg
 	config.New()
+
+	// resource
+	name := config.Name()
+
+	resource, err := resource.New(
+		context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceName(name),
+		),
+		resource.WithProcess(),
+	)
+	if err != nil {
+		return err
+	}
+
+	// logs
+	logsExporter, err := initLogsExporter()
+	if err != nil {
+		return err
+	}
+
+	lp := logsdk.NewLoggerProvider(
+		logsdk.WithResource(resource),
+		logsdk.WithProcessor(
+			logsdk.NewBatchProcessor(logsExporter),
+		),
+	)
+
+	defer lp.Shutdown(context.Background())
+
+	globallog.SetLoggerProvider(lp)
+
+	logger := otelslog.NewLogger(
+		config.Name(),
+		otelslog.WithLoggerProvider(lp),
+	)
+
+	slog.SetDefault(logger)
+
+	// traces
+	traceExporter, err := initTracesExporter()
+	if err != nil {
+		return err
+	}
+
+	tp := tracesdk.NewTracerProvider(
+		tracesdk.WithResource(resource),
+		tracesdk.WithSampler(tracesdk.AlwaysSample()),
+		tracesdk.WithSpanProcessor(
+			tracesdk.NewBatchSpanProcessor(
+				traceExporter,
+			),
+		),
+	)
+
+	defer tp.Shutdown(context.Background())
+
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
+
+	// metrics
+	metricsExporter, err := initMetricsExporter()
+	if err != nil {
+		return err
+	}
+
+	mp := metricsdk.NewMeterProvider(
+		metricsdk.WithResource(resource),
+		metricsdk.WithReader(
+			metricsdk.NewPeriodicReader(
+				metricsExporter,
+				metricsdk.WithInterval(15*time.Second),
+				metricsdk.WithProducer(runtime.NewProducer()),
+			),
+		),
+	)
+
+	defer mp.Shutdown(context.Background())
+
+	otel.SetMeterProvider(mp)
+
+	if err := host.Start(); err != nil {
+		return err
+	}
+
+	if err := runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second)); err != nil {
+		return err
+	}
 
 	// broker client
 	brokerClient := initBroker()
@@ -105,7 +213,7 @@ func StartEngine(ctx *cli.Context) error {
 	}
 
 	// block
-	err := <-ch
+	err = <-ch
 	if err != nil {
 		slog.ErrorContext(ctx.Context, "failed to start", "error", err)
 		return err
@@ -136,6 +244,26 @@ func StartEngine(ctx *cli.Context) error {
 	slog.InfoContext(ctx.Context, "successfully stopped")
 
 	return nil
+}
+
+func initLogsExporter() (logsdk.Exporter, error) {
+	return stdoutlog.New()
+}
+
+func initTracesExporter() (tracesdk.SpanExporter, error) {
+	return otlptracehttp.New(
+		context.Background(),
+		otlptracehttp.WithEndpoint(config.TracesAddress()),
+		otlptracehttp.WithInsecure(),
+	)
+}
+
+func initMetricsExporter() (metricsdk.Exporter, error) {
+	return otlpmetrichttp.New(
+		context.Background(),
+		otlpmetrichttp.WithEndpoint(config.MetricsAddress()),
+		otlpmetrichttp.WithInsecure(),
+	)
 }
 
 func initBroker() broker.Broker {

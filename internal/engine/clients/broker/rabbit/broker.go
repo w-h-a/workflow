@@ -8,6 +8,11 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type rabbitBroker struct {
@@ -18,13 +23,18 @@ type rabbitBroker struct {
 	exit    chan struct{}
 	wg      sync.WaitGroup
 	once    sync.Once
+	tracer  trace.Tracer
 }
 
 func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.Context, data []byte) error, opts ...broker.SubscribeOption) error {
 	options := broker.NewSubscribeOptions(opts...)
 
-	// span
-	slog.InfoContext(ctx, "subscribing to queue", "queue", options.Queue)
+	ctx, span := b.tracer.Start(ctx, "Subscribe to Queue", trace.WithAttributes(
+		semconv.MessagingSystemKey.String("rabbitmq"),
+		semconv.MessagingOperationReceive,
+		semconv.MessagingDestinationNameKey.String(options.Queue),
+	))
+	defer span.End()
 
 	b.wg.Add(1)
 	go func() {
@@ -35,7 +45,6 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			conn, err := b.getConnection()
 			if err != nil {
-				// span
 				slog.ErrorContext(ctx, "failed to get a connection from pool", "error", err, "attempt", attempt)
 				time.Sleep(time.Second * time.Duration(attempt))
 				continue
@@ -43,7 +52,6 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 
 			rbch, err := conn.Channel()
 			if err != nil {
-				// span
 				slog.ErrorContext(ctx, "failed to create channel", "error", err, "attempt", attempt)
 				time.Sleep(time.Second * time.Duration(attempt))
 				continue
@@ -57,7 +65,6 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 				false, // no-wait,
 				nil,   // arguments
 			); err != nil {
-				// span
 				slog.ErrorContext(ctx, "failed to declare queue", "error", err, "attempt", attempt)
 				rbch.Close()
 				time.Sleep(time.Second * time.Duration(attempt))
@@ -65,7 +72,6 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 			}
 
 			if err := rbch.Qos(1, 0, false); err != nil {
-				// span
 				slog.ErrorContext(ctx, "failed to set Qos", "error", err, "attempt", attempt)
 				rbch.Close()
 				time.Sleep(time.Second * time.Duration(attempt))
@@ -82,7 +88,6 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 				nil,   // args
 			)
 			if err != nil {
-				// span
 				slog.ErrorContext(ctx, "failed to subscribe", "error", err, "attempt", attempt)
 				rbch.Close()
 				time.Sleep(time.Second * time.Duration(attempt))
@@ -100,25 +105,42 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 						break consumerLoop
 					}
 
-					if err := callback(ctx, msg.Body); err != nil {
-						// span
-						slog.ErrorContext(ctx, "failed to process incoming data", "data", msg.Body, "error", err)
+					carrier := propagation.MapCarrier{}
 
-						if err := msg.Reject(false); err != nil {
-							// span
-							slog.ErrorContext(ctx, "failed to reject")
-						}
-					} else {
-						if err := msg.Ack(false); err != nil {
-							// span
-							slog.ErrorContext(ctx, "failed to ack")
+					for k, v := range msg.Headers {
+						if val, ok := v.(string); ok {
+							carrier.Set(k, val)
 						}
 					}
+
+					propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+					extractedCtx := propagator.Extract(ctx, carrier)
+
+					msgCtx, msgSpan := b.tracer.Start(extractedCtx, "Process RabbitMQ Message", trace.WithAttributes(
+						semconv.MessagingSystemKey.String("rabbitmq"),
+					))
+
+					func() {
+						defer msgSpan.End()
+
+						if err := callback(msgCtx, msg.Body); err != nil {
+							msgSpan.RecordError(err)
+							msgSpan.SetStatus(codes.Error, err.Error())
+							slog.ErrorContext(msgCtx, "failed to process incoming data", "data", msg.Body, "error", err)
+
+							if err := msg.Reject(false); err != nil {
+								slog.ErrorContext(msgCtx, "failed to reject")
+							}
+						} else {
+							if err := msg.Ack(false); err != nil {
+								slog.ErrorContext(msgCtx, "failed to ack")
+							}
+						}
+					}()
 				}
 			}
 		}
 
-		// span
 		slog.ErrorContext(ctx, "subscriber failed to connect after max attempts", "queue", options.Queue, "maxAttempts", maxAttempts)
 	}()
 
@@ -128,16 +150,24 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 func (b *rabbitBroker) Publish(ctx context.Context, data []byte, opts ...broker.PublishOption) error {
 	options := broker.NewPublishOptions(opts...)
 
-	// span
-	slog.InfoContext(ctx, "publishing to queue", "data", data, "queue", options.Queue)
+	ctx, span := b.tracer.Start(ctx, "Publish to Queue", trace.WithAttributes(
+		semconv.MessagingSystemKey.String("rabbitmq"),
+		semconv.MessagingOperationPublish,
+		semconv.MessagingDestinationNameKey.String(options.Queue),
+	))
+	defer span.End()
 
 	conn, err := b.getConnection()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to get connection from pool")
 		return err
 	}
 
 	rbch, err := conn.Channel()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create channel")
 		return broker.ErrCreatingChannel
 	}
 
@@ -151,12 +181,24 @@ func (b *rabbitBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 		false, // no-wait,
 		nil,   // arguments
 	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to declare queue")
 		return err
 	}
 
 	publishing := amqp.Publishing{
 		ContentType: "application/json",
 		Body:        data,
+		Headers:     amqp.Table{},
+	}
+
+	carrier := propagation.MapCarrier{}
+
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+	propagator.Inject(ctx, carrier)
+
+	for k, v := range carrier {
+		publishing.Headers[k] = v
 	}
 
 	if b.options.Durable {
@@ -171,8 +213,12 @@ func (b *rabbitBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 		false,         // immediate
 		publishing,
 	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to publish message")
 		return broker.ErrPublishing
 	}
+
+	span.SetStatus(codes.Ok, "message published")
 
 	return nil
 }
@@ -275,6 +321,7 @@ func NewBroker(opts ...broker.Option) broker.Broker {
 		exit:    make(chan struct{}),
 		wg:      sync.WaitGroup{},
 		once:    sync.Once{},
+		tracer:  otel.Tracer("rabbitmq-broker"),
 	}
 
 	return b

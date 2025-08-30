@@ -14,6 +14,10 @@ import (
 	"github.com/w-h-a/workflow/internal/engine/clients/reader"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/task"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Service struct {
@@ -22,6 +26,7 @@ type Service struct {
 	queues     map[string]int
 	locks      map[string]*sync.RWMutex
 	mtx        sync.RWMutex
+	tracer     trace.Tracer
 }
 
 func (s *Service) Start(ch chan struct{}) error {
@@ -50,6 +55,12 @@ func (s *Service) Start(ch chan struct{}) error {
 }
 
 func (s *Service) RetrieveTasks(ctx context.Context, page, size int) (*TasksWithMetadata, error) {
+	ctx, span := s.tracer.Start(ctx, "Coordinator.RetrieveTasks", trace.WithAttributes(
+		attribute.Int("page", page),
+		attribute.Int("size", size),
+	))
+	defer span.End()
+
 	opts := []reader.ReadOption{
 		reader.ReadWithPage(page),
 		reader.ReadWithSize(size),
@@ -57,6 +68,8 @@ func (s *Service) RetrieveTasks(ctx context.Context, page, size int) (*TasksWith
 
 	rp, err := s.readwriter.Read(ctx, opts...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -66,6 +79,8 @@ func (s *Service) RetrieveTasks(ctx context.Context, page, size int) (*TasksWith
 		task, _ := task.Factory(bs)
 		tasks = append(tasks, task)
 	}
+
+	span.SetStatus(codes.Ok, "tasks retrieved successfully")
 
 	return &TasksWithMetadata{
 		Tasks:      tasks,
@@ -77,11 +92,29 @@ func (s *Service) RetrieveTasks(ctx context.Context, page, size int) (*TasksWith
 }
 
 func (s *Service) RetrieveTask(ctx context.Context, id string) (*task.Task, error) {
-	return s.retrieveTask(ctx, id)
+	ctx, span := s.tracer.Start(ctx, "Coordinator.RetrieveTask", trace.WithAttributes(
+		attribute.String("task.id", id),
+	))
+	defer span.End()
+
+	t, err := s.retrieveTask(ctx, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+
+	span.SetStatus(codes.Ok, "task retrieved successfully")
+
+	return t, nil
 }
 
 func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, error) {
+	ctx, span := s.tracer.Start(ctx, "Coordinator.ScheduleTask")
+	defer span.End()
+
 	t.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
+	span.SetAttributes(attribute.String("task.id", t.ID))
 
 	now := time.Now()
 
@@ -95,13 +128,22 @@ func (s *Service) ScheduleTask(ctx context.Context, t *task.Task) (*task.Task, e
 	t.FailedAt = nil
 
 	if err := s.persistAndPublish(ctx, t, string(task.Scheduled)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+
+	span.SetStatus(codes.Ok, "task scheduled successfully")
 
 	return t, nil
 }
 
 func (s *Service) CancelTask(ctx context.Context, id string) (*task.Task, error) {
+	ctx, span := s.tracer.Start(ctx, "Coordinator.CancelTask", trace.WithAttributes(
+		attribute.String("task.id", id),
+	))
+	defer span.End()
+
 	taskLock := s.retrieveTaskLock(id)
 
 	taskLock.Lock()
@@ -109,10 +151,14 @@ func (s *Service) CancelTask(ctx context.Context, id string) (*task.Task, error)
 
 	t, err := s.retrieveTask(ctx, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	if t.State != task.Started {
+		span.RecordError(task.ErrTaskNotCancellable)
+		span.SetStatus(codes.Error, task.ErrTaskNotCancellable.Error())
 		return nil, task.ErrTaskNotCancellable
 	}
 
@@ -122,13 +168,22 @@ func (s *Service) CancelTask(ctx context.Context, id string) (*task.Task, error)
 	t.CancelledAt = &now
 
 	if err := s.persistAndPublish(ctx, t, string(task.Cancelled)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+
+	span.SetStatus(codes.Ok, "task cancelled successfully")
 
 	return t, nil
 }
 
 func (s *Service) RestartTask(ctx context.Context, id string) (*task.Task, error) {
+	ctx, span := s.tracer.Start(ctx, "Coordinator.RestartTask", trace.WithAttributes(
+		attribute.String("task.id", id),
+	))
+	defer span.End()
+
 	taskLock := s.retrieveTaskLock(id)
 
 	taskLock.Lock()
@@ -136,10 +191,14 @@ func (s *Service) RestartTask(ctx context.Context, id string) (*task.Task, error
 
 	t, err := s.retrieveTask(ctx, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	if t.State == task.Scheduled || t.State == task.Started {
+		span.RecordError(task.ErrTaskNotRestartable)
+		span.SetStatus(codes.Error, task.ErrTaskNotRestartable.Error())
 		return nil, task.ErrTaskNotRestartable
 	}
 
@@ -173,8 +232,12 @@ func (s *Service) RestartTask(ctx context.Context, id string) (*task.Task, error
 	}
 
 	if err := s.persistAndPublish(ctx, t, string(task.Scheduled)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+
+	span.SetStatus(codes.Ok, "task restarted successfully")
 
 	return t, nil
 }
@@ -188,29 +251,57 @@ func (s *Service) CheckHealth(ctx context.Context) error {
 }
 
 func (s *Service) handleTask(ctx context.Context, data []byte) error {
+	ctx, span := s.tracer.Start(ctx, "Coodinator.handleTask")
+	defer span.End()
+
 	t, _ := task.Factory(data)
+	span.SetAttributes(
+		attribute.String("task.id", t.ID),
+		attribute.String("task.state", string(t.State)),
+	)
 
 	switch t.State {
 	case task.Started:
+		ctx, child := s.tracer.Start(ctx, "Write Started State")
+		defer child.End()
+
 		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+			child.RecordError(err)
+			child.SetStatus(codes.Error, err.Error())
 			return err
 		}
+
+		child.SetStatus(codes.Ok, "task started event handled")
 
 		return nil
 	case task.Completed:
+		ctx, child := s.tracer.Start(ctx, "Write Completed State")
+		defer child.End()
+
 		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+			child.RecordError(err)
+			child.SetStatus(codes.Error, err.Error())
 			return err
 		}
 
 		s.removeTaskLock(t.ID)
+
+		child.SetStatus(codes.Ok, "task completed event handled")
 
 		return nil
 	case task.Failed:
+		ctx, child := s.tracer.Start(ctx, "Write Failed State")
+		defer child.End()
+
 		if err := s.readwriter.Write(ctx, t.ID, data); err != nil {
+			child.RecordError(err)
+			child.SetStatus(codes.Error, err.Error())
 			return err
 		}
 
 		s.removeTaskLock(t.ID)
+
+		child.SetStatus(codes.Ok, "task failed event handled")
 
 		return nil
 	}
@@ -230,9 +321,16 @@ func (s *Service) retrieveTask(ctx context.Context, id string) (*task.Task, erro
 }
 
 func (s *Service) persistAndPublish(ctx context.Context, t *task.Task, defaultQueueName string) error {
+	ctx, span := s.tracer.Start(ctx, "Coodinator.persistAndPublish", trace.WithAttributes(
+		attribute.String("task.id", t.ID),
+	))
+	defer span.End()
+
 	bs, _ := json.Marshal(t)
 
 	if err := s.readwriter.Write(ctx, t.ID, bs); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -240,14 +338,19 @@ func (s *Service) persistAndPublish(ctx context.Context, t *task.Task, defaultQu
 	if len(queueName) == 0 {
 		queueName = defaultQueueName
 	}
+	span.SetAttributes(attribute.String("queue", queueName))
 
 	opts := []broker.PublishOption{
 		broker.PublishWithQueue(queueName),
 	}
 
 	if err := s.broker.Publish(ctx, bs, opts...); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
+
+	span.SetStatus(codes.Ok, "task persisted and published")
 
 	return nil
 }
@@ -280,5 +383,6 @@ func New(b broker.Broker, rw readwriter.ReadWriter, qs map[string]int) *Service 
 		queues:     qs,
 		locks:      map[string]*sync.RWMutex{},
 		mtx:        sync.RWMutex{},
+		tracer:     otel.Tracer("coordinator-service"),
 	}
 }
