@@ -183,6 +183,8 @@ func (b *rabbitBroker) CheckHealth(ctx context.Context) error {
 		return err
 	}
 
+	defer conn.Close()
+
 	ch, err := conn.Channel()
 	if err != nil {
 		return err
