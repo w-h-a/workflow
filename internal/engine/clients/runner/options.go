@@ -1,14 +1,18 @@
 package runner
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type Option func(o *Options)
 
 type Options struct {
-	Host         string
-	RegistryUser string
-	RegistryPass string
-	Context      context.Context
+	Host          string
+	RegistryUser  string
+	RegistryPass  string
+	PruneInterval time.Duration
+	Context       context.Context
 }
 
 func WithHost(host string) Option {
@@ -29,9 +33,16 @@ func WithRegistryPass(pass string) Option {
 	}
 }
 
+func WithPruneInterval(interval time.Duration) Option {
+	return func(o *Options) {
+		o.PruneInterval = interval
+	}
+}
+
 func NewOptions(opts ...Option) Options {
 	options := Options{
-		Context: context.Background(),
+		Context:       context.Background(),
+		PruneInterval: 24 * time.Hour,
 	}
 
 	for _, fn := range opts {
