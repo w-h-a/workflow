@@ -8,7 +8,7 @@
     "5",
     "/tmp/output.mp4"
   ],
-  "volumes": ["/tmp"],
+  "mounts": [{"target": "/tmp"}],
   "pre": [{
     "name": "download the remote file",
     "image": "alpine:3.18.3",

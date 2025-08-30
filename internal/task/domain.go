@@ -30,10 +30,15 @@ type Task struct {
 	Error       string     `json:"error,omitempty"`
 	Pre         []*Task    `json:"pre,omitempty"`
 	Post        []*Task    `json:"post,omitempty"`
-	Volumes     []string   `json:"volumes,omitempty"`
+	Mounts      []*Mount   `json:"mounts,omitempty"`
 	Networks    []string   `json:"networks,omitempty"`
 	Retry       *Retry     `json:"retry,omitempty"`
 	Timeout     string     `json:"timeout,omitempty"`
+}
+
+type Mount struct {
+	Source string `json:"source,omitempty"`
+	Target string `json:"target,omitempty"`
 }
 
 type Retry struct {

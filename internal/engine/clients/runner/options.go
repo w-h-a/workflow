@@ -48,7 +48,7 @@ type RunOptions struct {
 	Image    string
 	Cmd      []string
 	Env      []string
-	Volumes  []string
+	Mounts   []map[string]string
 	Networks []string
 	Context  context.Context
 }
@@ -77,9 +77,9 @@ func RunWithEnv(env []string) RunOption {
 	}
 }
 
-func RunWithVolumes(volumes []string) RunOption {
+func RunWithMounts(mounts []map[string]string) RunOption {
 	return func(o *RunOptions) {
-		o.Volumes = volumes
+		o.Mounts = mounts
 	}
 }
 

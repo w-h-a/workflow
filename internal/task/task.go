@@ -19,6 +19,12 @@ func Factory(bs []byte) (*Task, error) {
 
 	// TODO: validate queue field
 
+	for _, m := range t.Mounts {
+		if m == nil || len(strings.TrimSpace(m.Target)) == 0 {
+			return nil, ErrMountMissingTarget
+		}
+	}
+
 	if t.Retry != nil {
 		if t.Retry.Attempts != 0 {
 			return nil, ErrAttemptsSpecified

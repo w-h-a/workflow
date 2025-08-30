@@ -52,17 +52,12 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 
 	var mounts []mount.Mount
 
-	for _, v := range options.Volumes {
-		vol := strings.Split(v, ":")
-		if len(vol) != 2 {
-			return "", runner.ErrInvalidVolumeName
-		}
-		mount := mount.Mount{
+	for _, m := range options.Mounts {
+		mounts = append(mounts, mount.Mount{
 			Type:   mount.TypeVolume,
-			Source: vol[0],
-			Target: vol[1],
-		}
-		mounts = append(mounts, mount)
+			Source: m["source"],
+			Target: m["target"],
+		})
 	}
 
 	hc := container.HostConfig{
