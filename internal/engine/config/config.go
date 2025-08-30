@@ -27,6 +27,8 @@ type config struct {
 	coordinatorHttp     string
 	workerHttp          string
 	workerQueues        map[string]int
+	tracesAddress       string
+	metricsAddress      string
 	broker              string
 	brokerLocation      string
 	brokerDurable       bool
@@ -49,6 +51,8 @@ func New() {
 			coordinatorHttp:     ":4000",
 			workerHttp:          ":4001",
 			workerQueues:        map[string]int{string(task.Scheduled): 1, string(task.Cancelled): 1},
+			tracesAddress:       "localhost:4318",
+			metricsAddress:      "localhost:4318",
 			broker:              "memory",
 			brokerLocation:      "",
 			brokerDurable:       false,
@@ -112,6 +116,16 @@ func New() {
 				}
 				instance.workerQueues[name] = concurrency
 			}
+		}
+
+		tracesAddress := os.Getenv("TRACES_ADDRESS")
+		if len(tracesAddress) > 0 {
+			instance.tracesAddress = tracesAddress
+		}
+
+		metricsAddress := os.Getenv("METRICS_ADDRESS")
+		if len(metricsAddress) > 0 {
+			instance.metricsAddress = metricsAddress
 		}
 
 		b := os.Getenv("BROKER")
@@ -243,6 +257,22 @@ func WorkerQueues() map[string]int {
 	maps.Copy(queues, instance.workerQueues)
 
 	return queues
+}
+
+func TracesAddress() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.tracesAddress
+}
+
+func MetricsAddress() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.metricsAddress
 }
 
 func Broker() string {
