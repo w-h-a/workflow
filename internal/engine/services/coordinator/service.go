@@ -143,43 +143,18 @@ func (s *Service) RestartTask(ctx context.Context, id string) (*task.Task, error
 		return nil, task.ErrTaskNotRestartable
 	}
 
-	if len(t.Volumes) > 0 {
-		var cleanedVolumes []string
-		for _, v := range t.Volumes {
-			parts := strings.Split(v, ":")
-			if len(parts) == 2 {
-				cleanedVolumes = append(cleanedVolumes, parts[1])
-			} else {
-				cleanedVolumes = append(cleanedVolumes, v)
-			}
+	if len(t.Mounts) > 0 {
+		for _, m := range t.Mounts {
+			m.Source = ""
 		}
-		t.Volumes = cleanedVolumes
 	}
 
 	for _, pre := range t.Pre {
-		var cleanedPreVolumes []string
-		for _, v := range pre.Volumes {
-			parts := strings.Split(v, ":")
-			if len(parts) == 2 {
-				cleanedPreVolumes = append(cleanedPreVolumes, parts[1])
-			} else {
-				cleanedPreVolumes = append(cleanedPreVolumes, v)
-			}
-		}
-		pre.Volumes = cleanedPreVolumes
+		pre.Mounts = nil
 	}
 
 	for _, post := range t.Post {
-		var cleanedPostVolumes []string
-		for _, v := range post.Volumes {
-			parts := strings.Split(v, ":")
-			if len(parts) == 2 {
-				cleanedPostVolumes = append(cleanedPostVolumes, parts[1])
-			} else {
-				cleanedPostVolumes = append(cleanedPostVolumes, v)
-			}
-		}
-		post.Volumes = cleanedPostVolumes
+		post.Mounts = nil
 	}
 
 	now := time.Now()

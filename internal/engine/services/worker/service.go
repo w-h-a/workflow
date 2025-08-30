@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -113,9 +112,9 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 		return err
 	}
 
-	var vs []string
+	var ms []*task.Mount
 
-	for _, v := range t.Volumes {
+	for _, m := range t.Mounts {
 		volName := strings.ReplaceAll(uuid.NewString(), "-", "")
 		opts := []runner.CreateVolumeOption{
 			runner.CreateVolumeWithName(volName),
@@ -147,14 +146,17 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 				slog.ErrorContext(ctx, "failed to delete volume", "name", volName)
 			}
 		}(volName)
-		vs = append(vs, fmt.Sprintf("%s:%s", volName, v))
+		ms = append(ms, &task.Mount{
+			Source: volName,
+			Target: m.Target,
+		})
 	}
 
-	t.Volumes = vs
+	t.Mounts = ms
 
 	for _, pre := range t.Pre {
 		pre.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
-		pre.Volumes = t.Volumes
+		pre.Mounts = t.Mounts
 		pre.Networks = t.Networks
 		result, err := s.run(ctx, pre)
 		finished := time.Now()
@@ -202,7 +204,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 
 	for _, post := range t.Post {
 		post.ID = strings.ReplaceAll(uuid.NewString(), "-", "")
-		post.Volumes = t.Volumes
+		post.Mounts = t.Mounts
 		post.Networks = t.Networks
 		result, err := s.run(ctx, post)
 		finished := time.Now()
@@ -251,12 +253,21 @@ func (s *Service) run(ctx context.Context, t *task.Task) (string, error) {
 		ctx = timeoutCtx
 	}
 
+	var mounts []map[string]string
+
+	for _, m := range t.Mounts {
+		mounts = append(mounts, map[string]string{
+			"source": m.Source,
+			"target": m.Target,
+		})
+	}
+
 	runOpts := []runner.RunOption{
 		runner.RunWithID(t.ID),
 		runner.RunWithImage(t.Image),
 		runner.RunWithCmd(t.Cmd),
 		runner.RunWithEnv(t.Env),
-		runner.RunWithVolumes(t.Volumes),
+		runner.RunWithMounts(mounts),
 		runner.RunWithNetworks(t.Networks),
 	}
 
