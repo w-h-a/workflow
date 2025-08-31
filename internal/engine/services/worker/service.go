@@ -160,7 +160,17 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 		logOpts := []broker.PublishOption{
 			broker.PublishWithQueue(string(log.Queue)),
 		}
-		s.broker.Publish(context.Background(), logData, logOpts...)
+		ctx, publishLogSpan := s.tracer.Start(ctx, "Publish Container Log", trace.WithAttributes(
+			attribute.String("task.id", t.ID),
+			attribute.String("log", logLine),
+		))
+		defer publishLogSpan.End()
+		if err := s.broker.Publish(ctx, logData, logOpts...); err != nil {
+			publishLogSpan.RecordError(err)
+			publishLogSpan.SetStatus(codes.Error, err.Error())
+		} else {
+			publishLogSpan.SetStatus(codes.Ok, "container log published")
+		}
 	}
 
 	var ms []*task.Mount
