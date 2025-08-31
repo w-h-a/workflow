@@ -58,6 +58,31 @@ services:
       retries: 5
       start_period: 30s
 
+  streamer:
+    container_name: streamer
+    build: .
+    command: engine
+    ports:
+      - "4002:4002"
+    environment:
+      - ENV=dev
+      - NAME=streamer
+      - VERSION=0.1.0-alpha.0
+      - MODE=streamer
+      - HTTP_ADDRESS=:4002
+      - TRACES_ADDRESS=jaeger:4318
+      - METRICS_ADDRESS=prometheus:9090
+      - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://prometheus:9090/api/v1/otlp/v1/metrics
+      - BROKER=rabbit
+      - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      jaeger:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
   worker:
     container_name: worker
     build: .
