@@ -26,6 +26,7 @@ type config struct {
 	mode                string
 	coordinatorHttp     string
 	workerHttp          string
+	streamerHttp        string
 	workerQueues        map[string]int
 	tracesAddress       string
 	metricsAddress      string
@@ -50,6 +51,7 @@ func New() {
 			mode:                "standalone",
 			coordinatorHttp:     ":4000",
 			workerHttp:          ":4001",
+			streamerHttp:        ":4002",
 			workerQueues:        map[string]int{string(task.Scheduled): 1, string(task.Cancelled): 1},
 			tracesAddress:       "localhost:4318",
 			metricsAddress:      "localhost:4318",
@@ -92,6 +94,9 @@ func New() {
 			}
 			if instance.mode == "worker" {
 				instance.workerHttp = httpAddress
+			}
+			if instance.mode == "streamer" {
+				instance.streamerHttp = httpAddress
 			}
 		}
 
@@ -245,6 +250,14 @@ func WorkerHttp() string {
 	}
 
 	return instance.workerHttp
+}
+
+func StreamerHttp() string {
+	if instance == nil {
+		panic("cfg is nil")
+	}
+
+	return instance.streamerHttp
 }
 
 func WorkerQueues() map[string]int {

@@ -19,6 +19,7 @@ import (
 	"github.com/w-h-a/workflow/internal/engine/clients/runner/docker"
 	"github.com/w-h-a/workflow/internal/engine/config"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
+	"github.com/w-h-a/workflow/internal/engine/services/streamer"
 	"github.com/w-h-a/workflow/internal/engine/services/worker"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/host"
@@ -141,6 +142,17 @@ func StartEngine(ctx *cli.Context) error {
 	stopChannels := map[string]chan struct{}{}
 	numServices := 0
 
+	// streamer
+	var streamerServer serverv2.Server
+	var s *streamer.Service
+	if config.Mode() == "standalone" || config.Mode() == "streamer" {
+		streamerServer, s = engine.NewStreamer(
+			brokerClient,
+		)
+
+		numServices += 2
+	}
+
 	// worker
 	var workerServer serverv2.Server
 	var w *worker.Service
@@ -171,6 +183,26 @@ func StartEngine(ctx *cli.Context) error {
 
 	// error chan
 	ch := make(chan error, numServices)
+
+	// start streamer
+	if s != nil {
+		stop := make(chan struct{})
+		stopChannels["streamer"] = stop
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			slog.InfoContext(ctx.Context, "starting streamer")
+			ch <- s.Start(stop)
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			slog.InfoContext(ctx.Context, "starting streamer http server", "address", config.StreamerHttp())
+			ch <- streamerServer.Start()
+		}()
+	}
 
 	// start worker
 	if w != nil {
@@ -221,6 +253,10 @@ func StartEngine(ctx *cli.Context) error {
 
 	// graceful shutdown
 	slog.InfoContext(ctx.Context, "stopping...")
+
+	if stop, ok := stopChannels["streamer"]; ok {
+		close(stop)
+	}
 
 	if stop, ok := stopChannels["worker"]; ok {
 		close(stop)

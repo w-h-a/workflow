@@ -21,6 +21,19 @@ func main() {
 				},
 			},
 			{
+				Name: "container-logs",
+				Action: func(ctx *cli.Context) error {
+					return cmd.StreamContainerLogs(ctx)
+				},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "task_id",
+						Usage:    "Provide the task id for the container logs to stream",
+						Required: true,
+					},
+				},
+			},
+			{
 				Name: "migration",
 				Action: func(ctx *cli.Context) error {
 					return cmd.RunMigrations(ctx)

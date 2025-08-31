@@ -17,7 +17,7 @@ import (
 type Service struct {
 	broker  broker.Broker
 	queues  map[string]int
-	streams map[string]chan string
+	streams map[string][]chan string
 	mtx     sync.RWMutex
 	tracer  trace.Tracer
 }
@@ -55,7 +55,7 @@ func (s *Service) StreamLogs(ctx context.Context, id string) (*LogStream, error)
 
 	s.mtx.Lock()
 	logs := make(chan string)
-	s.streams[id] = logs
+	s.streams[id] = append(s.streams[id], logs)
 	s.mtx.Unlock()
 
 	logStream := &LogStream{
@@ -70,7 +70,15 @@ func (s *Service) StreamLogs(ctx context.Context, id string) (*LogStream, error)
 		}
 
 		s.mtx.Lock()
-		delete(s.streams, id)
+		for i, ch := range s.streams[id] {
+			if ch == logs {
+				s.streams[id] = append(s.streams[id][:i], s.streams[id][i+1:]...)
+				break
+			}
+		}
+		if len(s.streams[id]) == 0 {
+			delete(s.streams, id)
+		}
 		close(logs)
 		s.mtx.Unlock()
 	}()
@@ -80,6 +88,10 @@ func (s *Service) StreamLogs(ctx context.Context, id string) (*LogStream, error)
 	return logStream, nil
 }
 
+func (s *Service) CheckHealth(ctx context.Context) error {
+	return s.broker.CheckHealth(ctx)
+}
+
 func (s *Service) handleLog(ctx context.Context, data []byte) error {
 	ctx, span := s.tracer.Start(ctx, "Streamer.handleLog")
 	defer span.End()
@@ -87,25 +99,27 @@ func (s *Service) handleLog(ctx context.Context, data []byte) error {
 	e, _ := log.Factory(data)
 
 	s.mtx.RLock()
-	logCh, ok := s.streams[e.TaskID]
+	logChs, ok := s.streams[e.TaskID]
 	s.mtx.RUnlock()
 
 	if ok {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					span.SetStatus(codes.Error, "log stream closed unexpectedly during send")
-					slog.WarnContext(ctx, "recovered from panic sending to log stream", "task.id", e.TaskID)
+		for _, logCh := range logChs {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						span.SetStatus(codes.Error, "log stream closed unexpectedly during send")
+						slog.WarnContext(ctx, "recovered from panic sending to log stream", "task.id", e.TaskID)
+					}
+				}()
+
+				select {
+				case <-ctx.Done():
+					span.SetStatus(codes.Error, "stream context cancelled")
+				case logCh <- e.Log:
+					span.SetStatus(codes.Ok, "log line streamed successfully")
 				}
 			}()
-
-			select {
-			case <-ctx.Done():
-				span.SetStatus(codes.Error, "stream context cancelled")
-			case logCh <- e.Log:
-				span.SetStatus(codes.Ok, "log line streamed successfully")
-			}
-		}()
+		}
 	} else {
 		span.SetStatus(codes.Ok, "no active stream for task ID")
 	}
@@ -117,7 +131,7 @@ func New(b broker.Broker, qs map[string]int) *Service {
 	return &Service{
 		broker:  b,
 		queues:  qs,
-		streams: map[string]chan string{},
+		streams: map[string][]chan string{},
 		mtx:     sync.RWMutex{},
 		tracer:  otel.Tracer("streamer-service"),
 	}
