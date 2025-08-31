@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
+	"github.com/w-h-a/workflow/internal/log"
 	"github.com/w-h-a/workflow/internal/task"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -150,6 +151,18 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	publishStartedSpan.SetStatus(codes.Ok, "started state published")
 	publishStartedSpan.End()
 
+	logHandler := func(logLine string) {
+		logEntry := &log.Entry{
+			TaskID: t.ID,
+			Log:    logLine,
+		}
+		logData, _ := json.Marshal(logEntry)
+		logOpts := []broker.PublishOption{
+			broker.PublishWithQueue(string(log.Queue)),
+		}
+		s.broker.Publish(context.Background(), logData, logOpts...)
+	}
+
 	var ms []*task.Mount
 
 	for _, m := range t.Mounts {
@@ -231,7 +244,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 			attribute.String("pre-task.id", pre.ID),
 		))
 
-		result, err := s.run(ctx, pre)
+		result, err := s.run(ctx, pre, logHandler)
 
 		finished := time.Now()
 		if err != nil {
@@ -270,7 +283,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 		pre.Result = result
 	}
 
-	result, err := s.run(ctx, t)
+	result, err := s.run(ctx, t, logHandler)
 
 	finished := time.Now()
 
@@ -312,7 +325,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 			attribute.String("post-task.id", post.ID),
 		))
 
-		result, err := s.run(ctx, post)
+		result, err := s.run(ctx, post, logHandler)
 
 		finished := time.Now()
 		if err != nil {
@@ -378,7 +391,7 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 	return nil
 }
 
-func (s *Service) run(ctx context.Context, t *task.Task) (string, error) {
+func (s *Service) run(ctx context.Context, t *task.Task, logHandler func(logLine string)) (string, error) {
 	ctx, span := s.tracer.Start(ctx, "Worker.run", trace.WithAttributes(
 		attribute.String("task.id", t.ID),
 		attribute.String("task.image", t.Image),
@@ -409,6 +422,7 @@ func (s *Service) run(ctx context.Context, t *task.Task) (string, error) {
 		runner.RunWithEnv(t.Env),
 		runner.RunWithMounts(mounts),
 		runner.RunWithNetworks(t.Networks),
+		runner.RunWithLogHandler(logHandler),
 	}
 
 	result, err := s.runner.Run(ctx, runOpts...)
