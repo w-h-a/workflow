@@ -55,13 +55,14 @@ func NewOptions(opts ...Option) Options {
 type RunOption func(o *RunOptions)
 
 type RunOptions struct {
-	ID       string
-	Image    string
-	Cmd      []string
-	Env      []string
-	Mounts   []map[string]string
-	Networks []string
-	Context  context.Context
+	ID         string
+	Image      string
+	Cmd        []string
+	Env        []string
+	Mounts     []map[string]string
+	Networks   []string
+	LogHandler func(logLine string)
+	Context    context.Context
 }
 
 func RunWithID(id string) RunOption {
@@ -100,9 +101,16 @@ func RunWithNetworks(networks []string) RunOption {
 	}
 }
 
+func RunWithLogHandler(logHandler func(logLine string)) RunOption {
+	return func(o *RunOptions) {
+		o.LogHandler = logHandler
+	}
+}
+
 func NewRunOptions(opts ...RunOption) RunOptions {
 	options := RunOptions{
-		Context: context.Background(),
+		LogHandler: func(logLine string) {},
+		Context:    context.Background(),
 	}
 
 	for _, fn := range opts {

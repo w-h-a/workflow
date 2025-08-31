@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -8,7 +9,6 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -96,25 +96,30 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		return "", err
 	}
 
-	out, err := r.client.ContainerLogs(ctx, rsp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+	out, err := r.client.ContainerLogs(ctx, rsp.ID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+	})
 	if err != nil {
 		return "", err
 	}
 
-	defer func() {
-		if err := out.Close(); err != nil {
-			// span
-			slog.ErrorContext(ctx, "failed to close stdout on container", "containerID", rsp.ID)
-		}
+	defer out.Close()
+
+	rPipe, wPipe := io.Pipe()
+
+	go func() {
+		defer wPipe.Close()
+		stdcopy.StdCopy(wPipe, wPipe, out)
 	}()
 
-	lr := &io.LimitedReader{R: out, N: 4096}
-	buf := &strings.Builder{}
-	multiWriter := io.MultiWriter(os.Stdout, buf)
-
-	if _, err := stdcopy.StdCopy(multiWriter, multiWriter, lr); err != nil {
-		return "", err
-	}
+	go func() {
+		scanner := bufio.NewScanner(rPipe)
+		for scanner.Scan() {
+			options.LogHandler(scanner.Text())
+		}
+	}()
 
 	statusCh, errCh := r.client.ContainerWait(ctx, rsp.ID, container.WaitConditionNotRunning)
 
@@ -133,7 +138,7 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		slog.InfoContext(ctx, "done waiting for container", "containerID", rsp.ID, "status", status.StatusCode)
 	}
 
-	return buf.String(), nil
+	return "Container finished", nil
 }
 
 func (r *dockerRunner) CreateVolume(ctx context.Context, opts ...runner.CreateVolumeOption) error {
@@ -350,6 +355,12 @@ func NewRunner(opts ...runner.Option) runner.Runner {
 	c, err := client.NewClientWithOpts(client.WithHost(options.Host))
 	if err != nil {
 		detail := "failed to initialize docker runner client"
+		slog.ErrorContext(context.Background(), detail, "error", err)
+		panic(err)
+	}
+
+	if _, err := c.Ping(context.Background()); err != nil {
+		detail := "failed to ping docker daemon"
 		slog.ErrorContext(context.Background(), detail, "error", err)
 		panic(err)
 	}
