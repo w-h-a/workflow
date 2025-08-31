@@ -219,22 +219,17 @@ func (s *Service) runTask(ctx context.Context, t *task.Task) error {
 		createdVolumeSpan.End()
 
 		defer func(volName string) {
-			ctx, deleteVolumeSpan := s.tracer.Start(context.Background(), "Delete Volume Deferred", trace.WithAttributes(
-				attribute.String("volume.name", volName),
-			))
-			defer deleteVolumeSpan.End()
-
 			opts := []runner.DeleteVolumeOption{
 				runner.DeleteVolumeWithName(volName),
 			}
 
-			if err := s.runner.DeleteVolume(ctx, opts...); err != nil {
-				deleteVolumeSpan.RecordError(err)
-				deleteVolumeSpan.SetStatus(codes.Error, err.Error())
-				slog.ErrorContext(ctx, "failed to delete volume", "name", volName)
-			}
+			ctx := context.Background()
 
-			deleteVolumeSpan.SetStatus(codes.Ok, "volume deleted")
+			if err := s.runner.DeleteVolume(ctx, opts...); err != nil {
+				slog.ErrorContext(ctx, "failed to delete volume", "name", volName, "error", err)
+			} else {
+				slog.InfoContext(ctx, "volume deleted", "name", volName)
+			}
 		}(volName)
 
 		ms = append(ms, &task.Mount{
