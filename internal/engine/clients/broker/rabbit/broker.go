@@ -29,12 +29,7 @@ type rabbitBroker struct {
 func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.Context, data []byte) error, opts ...broker.SubscribeOption) error {
 	options := broker.NewSubscribeOptions(opts...)
 
-	ctx, span := b.tracer.Start(ctx, "Subscribe to Queue", trace.WithAttributes(
-		semconv.MessagingSystemKey.String("rabbitmq"),
-		semconv.MessagingOperationReceive,
-		semconv.MessagingDestinationNameKey.String(options.Queue),
-	))
-	defer span.End()
+	slog.InfoContext(ctx, "subscribing to queue", "queue", options.Queue)
 
 	b.wg.Add(1)
 	go func() {
@@ -129,11 +124,15 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 							slog.ErrorContext(msgCtx, "failed to process incoming data", "data", msg.Body, "error", err)
 
 							if err := msg.Reject(false); err != nil {
-								slog.ErrorContext(msgCtx, "failed to reject")
+								msgSpan.RecordError(err)
+								msgSpan.SetStatus(codes.Error, err.Error())
+								slog.ErrorContext(msgCtx, "failed to reject", "error", err)
 							}
 						} else {
 							if err := msg.Ack(false); err != nil {
-								slog.ErrorContext(msgCtx, "failed to ack")
+								msgSpan.RecordError(err)
+								msgSpan.SetStatus(codes.Error, err.Error())
+								slog.ErrorContext(msgCtx, "failed to ack", "error", err)
 							}
 						}
 					}()
