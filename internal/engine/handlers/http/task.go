@@ -56,7 +56,7 @@ func (t *Tasks) GetOneTask(w http.ResponseWriter, r *http.Request) {
 func (t *Tasks) PostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := reqToCtx(r)
 
-	task, err := t.parser.ParsePostBody(ctx, r)
+	task, err := t.parser.ParsePostTaskBody(ctx, r)
 	if err != nil {
 		wrtRsp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return

@@ -67,7 +67,7 @@ func (p *Parser) ParseTaskId(ctx context.Context, r *http.Request) (string, erro
 	return taskKey, nil
 }
 
-func (p *Parser) ParsePostBody(ctx context.Context, r *http.Request) (*task.Task, error) {
+func (p *Parser) ParsePostTaskBody(ctx context.Context, r *http.Request) (*task.Task, error) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
