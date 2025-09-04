@@ -60,7 +60,7 @@ func (b *memoryBroker) Publish(ctx context.Context, data []byte, opts ...broker.
 	b.mtx.Lock()
 	q, ok := b.queues[options.Queue]
 	if !ok {
-		q = make(chan []byte, 10)
+		q = make(chan []byte, 100)
 		b.queues[options.Queue] = q
 	}
 	b.mtx.Unlock()
@@ -92,6 +92,19 @@ func (b *memoryBroker) Close(ctx context.Context) error {
 	case <-done:
 		return nil
 	}
+}
+
+func (b *memoryBroker) Queue(name string) <-chan []byte {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	q, ok := b.queues[name]
+	if !ok {
+		q = make(chan []byte, 100)
+		b.queues[name] = q
+	}
+
+	return q
 }
 
 func NewBroker(opts ...broker.Option) broker.Broker {
