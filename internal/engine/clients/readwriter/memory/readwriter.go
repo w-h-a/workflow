@@ -74,7 +74,7 @@ func (rw *memoryReadWriter) Write(ctx context.Context, id string, data []byte, o
 	return nil
 }
 
-func NewReadWriter(opts ...readwriter.Option) readwriter.ReadWriter {
+func NewReadWriter(opts ...readwriter.Option) *memoryReadWriter {
 	options := readwriter.NewOptions(opts...)
 
 	rw := &memoryReadWriter{

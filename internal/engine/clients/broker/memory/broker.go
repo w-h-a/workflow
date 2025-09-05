@@ -107,7 +107,7 @@ func (b *memoryBroker) Queue(name string) <-chan []byte {
 	return q
 }
 
-func NewBroker(opts ...broker.Option) broker.Broker {
+func NewBroker(opts ...broker.Option) *memoryBroker {
 	options := broker.NewOptions(opts...)
 
 	b := &memoryBroker{

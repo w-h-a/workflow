@@ -36,6 +36,6 @@ func (r *mockRunner) Close(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func NewRunner(opts ...runner.Option) runner.Runner {
+func NewRunner(opts ...runner.Option) *mockRunner {
 	return &mockRunner{}
 }

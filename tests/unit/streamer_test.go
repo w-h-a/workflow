@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -37,7 +36,7 @@ func TestStreamer_StreamLogs_Success(t *testing.T) {
 	}()
 
 	// Act
-	taskID := strings.ReplaceAll(t.Name(), "-", "")
+	taskID := t.Name()
 
 	logStream, err := s.StreamLogs(context.Background(), taskID)
 	require.NoError(t, err)
@@ -95,7 +94,7 @@ func TestStreamer_StreamLogs_MultipleClients(t *testing.T) {
 	}()
 
 	// Act
-	taskID := strings.ReplaceAll(t.Name(), "-", "")
+	taskID := t.Name()
 
 	logStream1, err := s.StreamLogs(context.Background(), taskID)
 	require.NoError(t, err)
@@ -153,7 +152,7 @@ func TestStreamer_StreamLogs_Cancelled(t *testing.T) {
 	}()
 
 	// Act
-	taskID := strings.ReplaceAll(t.Name(), "-", "")
+	taskID := t.Name()
 
 	logStream, err := s.StreamLogs(context.Background(), taskID)
 	require.NoError(t, err)
