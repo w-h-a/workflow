@@ -16,7 +16,6 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
@@ -66,15 +65,9 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 		Mounts:          mounts,
 	}
 
-	nc := network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{},
-	}
+	// TODO: network support
 
-	for _, nw := range options.Networks {
-		nc.EndpointsConfig[nw] = &network.EndpointSettings{NetworkID: nw}
-	}
-
-	rsp, err := r.client.ContainerCreate(ctx, &cc, &hc, &nc, nil, "")
+	rsp, err := r.client.ContainerCreate(ctx, &cc, &hc, nil, nil, "")
 	if err != nil {
 		// span
 		slog.ErrorContext(ctx, "failed to create container", "image", options.Image, "error", err)
@@ -82,9 +75,10 @@ func (r *dockerRunner) Run(ctx context.Context, opts ...runner.RunOption) (strin
 	}
 
 	defer func() {
-		if err := r.remove(ctx, options.ID); err != nil {
+		cleanupCtx := context.WithoutCancel(ctx)
+		if err := r.remove(cleanupCtx, options.ID); err != nil {
 			// span
-			slog.ErrorContext(ctx, "failed to remove container", "containerID", rsp.ID, "error", err)
+			slog.ErrorContext(cleanupCtx, "failed to remove container", "containerID", rsp.ID, "error", err)
 		}
 	}()
 
@@ -305,13 +299,17 @@ func (r *dockerRunner) remove(ctx context.Context, id string) error {
 
 	if err := r.client.ContainerStop(ctx, containerID, container.StopOptions{}); err != nil {
 		// span
-		return err
+		slog.ErrorContext(ctx, "failed to stop container", "containerID", containerID, "error", err)
 	}
 
 	if err := r.client.ContainerRemove(ctx, containerID, container.RemoveOptions{RemoveVolumes: false, RemoveLinks: false, Force: true}); err != nil {
 		// span
+		slog.ErrorContext(ctx, "failed to remove container", "containerID", containerID, "error", err)
 		return err
 	}
+
+	// span
+	slog.InfoContext(ctx, "successfully removed container", "containerID", containerID)
 
 	return nil
 }
