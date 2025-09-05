@@ -12,7 +12,7 @@ unit-test:
 
 .PHONY: integration-test
 integration-test:
-	./tests/integration/integration_tests.sh
+	go clean -testcache && INTEGRATION=1 go test -v ./...
 
 .PHONY: go-build
 go-build:

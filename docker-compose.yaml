@@ -82,6 +82,12 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:4002/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   worker:
     container_name: worker
@@ -111,6 +117,12 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:4001/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   coordinator:
     container_name: coordinator
@@ -140,3 +152,9 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:4000/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
