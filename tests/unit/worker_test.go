@@ -30,6 +30,7 @@ func TestWorker_HandleTask_Scheduled_Success(t *testing.T) {
 	// Arrange
 	mockRunner := mockrunner.NewRunner()
 	memoryBroker := memory.NewBroker()
+
 	w := worker.New(mockRunner, memoryBroker, map[string]int{string(task.Scheduled): 1})
 
 	stop := make(chan struct{})
@@ -94,6 +95,7 @@ func TestWorker_HandleTask_Scheduled_Failure(t *testing.T) {
 	// Arrange
 	mockRunner := mockrunner.NewRunner()
 	memoryBroker := memory.NewBroker()
+
 	w := worker.New(mockRunner, memoryBroker, map[string]int{string(task.Scheduled): 1})
 
 	stop := make(chan struct{})
@@ -158,6 +160,7 @@ func TestWorker_HandleTask_Cancellation(t *testing.T) {
 	// Arrange
 	mockRunner := mockrunner.NewRunner()
 	memoryBroker := memory.NewBroker()
+
 	w := worker.New(mockRunner, memoryBroker, map[string]int{
 		string(task.Scheduled): 1,
 		string(task.Cancelled): 1,
@@ -245,6 +248,7 @@ func TestWorker_HandleTask_VolumeCreationFailure(t *testing.T) {
 	// Arrange
 	mockRunner := mockrunner.NewRunner()
 	memoryBroker := memory.NewBroker()
+
 	w := worker.New(mockRunner, memoryBroker, map[string]int{string(task.Scheduled): 1})
 
 	stop := make(chan struct{})
@@ -318,6 +322,7 @@ func TestWorker_HandleTask_PreTaskFailure(t *testing.T) {
 	// Arrange
 	mockRunner := mockrunner.NewRunner()
 	memoryBroker := memory.NewBroker()
+
 	w := worker.New(mockRunner, memoryBroker, map[string]int{string(task.Scheduled): 1})
 
 	stop := make(chan struct{})
