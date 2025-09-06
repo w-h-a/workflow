@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
@@ -24,6 +26,7 @@ func TestStreamer_StreamLogs_Success(t *testing.T) {
 
 	// Arrange
 	memoryBroker := memory.NewBroker()
+
 	s := streamer.New(memoryBroker, map[string]int{string(log.Queue): 1})
 
 	stop := make(chan struct{})
@@ -36,7 +39,7 @@ func TestStreamer_StreamLogs_Success(t *testing.T) {
 	}()
 
 	// Act
-	taskID := t.Name()
+	taskID := strings.ReplaceAll(uuid.NewString(), "-", "")
 
 	logStream, err := s.StreamLogs(context.Background(), taskID)
 	require.NoError(t, err)
@@ -82,6 +85,7 @@ func TestStreamer_StreamLogs_MultipleClients(t *testing.T) {
 
 	// Arrange
 	memoryBroker := memory.NewBroker()
+
 	s := streamer.New(memoryBroker, map[string]int{string(log.Queue): 1})
 
 	stop := make(chan struct{})
@@ -94,7 +98,7 @@ func TestStreamer_StreamLogs_MultipleClients(t *testing.T) {
 	}()
 
 	// Act
-	taskID := t.Name()
+	taskID := strings.ReplaceAll(uuid.NewString(), "-", "")
 
 	logStream1, err := s.StreamLogs(context.Background(), taskID)
 	require.NoError(t, err)
@@ -140,6 +144,7 @@ func TestStreamer_StreamLogs_Cancelled(t *testing.T) {
 
 	// Arrange
 	memoryBroker := memory.NewBroker()
+
 	s := streamer.New(memoryBroker, map[string]int{string(log.Queue): 1})
 
 	stop := make(chan struct{})
@@ -152,7 +157,7 @@ func TestStreamer_StreamLogs_Cancelled(t *testing.T) {
 	}()
 
 	// Act
-	taskID := t.Name()
+	taskID := strings.ReplaceAll(uuid.NewString(), "-", "")
 
 	logStream, err := s.StreamLogs(context.Background(), taskID)
 	require.NoError(t, err)
