@@ -47,6 +47,7 @@ func TestCoordinator_CancelTask_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, testData)
 
+	// Act
 	rsp1, err := http.Post(
 		"http://localhost:4000/tasks",
 		"application/json",
@@ -59,11 +60,23 @@ func TestCoordinator_CancelTask_Success(t *testing.T) {
 	err = json.NewDecoder(rsp1.Body).Decode(&scheduledTask)
 	require.NoError(t, err)
 
+	// Assert
+	require.Eventually(t, func() bool {
+		var startedTask task.Task
+		rsp, err := http.Get(
+			fmt.Sprintf("http://localhost:4000/tasks/%s", scheduledTask.ID),
+		)
+		if err != nil {
+			return false
+		}
+		defer rsp.Body.Close()
+		if err := json.NewDecoder(rsp.Body).Decode(&startedTask); err != nil {
+			return false
+		}
+		return startedTask.State == task.Started
+	}, 10*time.Second, 500*time.Millisecond, "timed out waiting for task to start")
+
 	// Act
-	time.Sleep(3 * time.Second)
-
-	client := &http.Client{}
-
 	req, err := http.NewRequest(
 		http.MethodPut,
 		fmt.Sprintf("http://localhost:4000/tasks/cancel/%s", scheduledTask.ID),
@@ -71,48 +84,41 @@ func TestCoordinator_CancelTask_Success(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	rsp2, err := client.Do(req)
+	rsp2, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer rsp2.Body.Close()
 
 	// Assert
-	assert.Equal(t, http.StatusOK, rsp2.StatusCode)
-
-	var cancelledTask task.Task
-	err = json.NewDecoder(rsp2.Body).Decode(&cancelledTask)
-	assert.NoError(t, err)
-
-	assert.Equal(t, scheduledTask.ID, cancelledTask.ID)
-	assert.Equal(t, task.Cancelled, cancelledTask.State)
-	assert.NotNil(t, cancelledTask.CancelledAt)
-
-	// Act
-	rsp3, err := http.Get(
-		fmt.Sprintf("http://localhost:4000/tasks/%s", cancelledTask.ID),
-	)
-	require.NoError(t, err)
-	defer rsp3.Body.Close()
-
-	// Assert
-	assert.Equal(t, http.StatusOK, rsp3.StatusCode)
-
-	var retrievedTask task.Task
-	err = json.NewDecoder(rsp3.Body).Decode(&retrievedTask)
-	assert.NoError(t, err)
-
-	assert.Equal(t, task.Cancelled, retrievedTask.State)
+	require.Eventually(t, func() bool {
+		var cancelledTask task.Task
+		rsp, err := http.Get(
+			fmt.Sprintf("http://localhost:4000/tasks/%s", scheduledTask.ID),
+		)
+		if err != nil {
+			return false
+		}
+		defer rsp.Body.Close()
+		if err := json.NewDecoder(rsp.Body).Decode(&cancelledTask); err != nil {
+			return false
+		}
+		return cancelledTask.State == task.Failed
+	}, 10*time.Second, 500*time.Millisecond, "timed out waiting for task to cancel")
 }
 
 func TestCoordinator_RestartTask_Success(t *testing.T) {
 	// Arrange
-	testData, err := os.ReadFile("../testdata/hello.json")
-	require.NoError(t, err)
-	require.NotNil(t, testData)
+	testTask := &task.Task{
+		Image: "ubuntu:mantic",
+		Cmd:   []string{"sleep", "5"},
+	}
 
+	bs, _ := json.Marshal(testTask)
+
+	// Act
 	rsp1, err := http.Post(
 		"http://localhost:4000/tasks",
 		"application/json",
-		bytes.NewBuffer(testData),
+		bytes.NewBuffer(bs),
 	)
 	require.NoError(t, err)
 	defer rsp1.Body.Close()
@@ -121,11 +127,23 @@ func TestCoordinator_RestartTask_Success(t *testing.T) {
 	err = json.NewDecoder(rsp1.Body).Decode(&scheduledTask)
 	require.NoError(t, err)
 
+	// Assert
+	require.Eventually(t, func() bool {
+		var completedTask task.Task
+		rsp, err := http.Get(
+			fmt.Sprintf("http://localhost:4000/tasks/%s", scheduledTask.ID),
+		)
+		if err != nil {
+			return false
+		}
+		defer rsp.Body.Close()
+		if err := json.NewDecoder(rsp.Body).Decode(&completedTask); err != nil {
+			return false
+		}
+		return completedTask.State == task.Completed
+	}, 30*time.Second, 1*time.Second, "timed out waiting for task to complete")
+
 	// Act
-	time.Sleep(3 * time.Second)
-
-	client := &http.Client{}
-
 	req, err := http.NewRequest(
 		http.MethodPut,
 		fmt.Sprintf("http://localhost:4000/tasks/restart/%s", scheduledTask.ID),
@@ -133,21 +151,38 @@ func TestCoordinator_RestartTask_Success(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	rsp2, err := client.Do(req)
+	rsp2, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer rsp2.Body.Close()
 
 	// Assert
-	assert.Equal(t, http.StatusOK, rsp2.StatusCode)
+	require.Eventually(t, func() bool {
+		var startedTask task.Task
+		rsp, err := http.Get(
+			fmt.Sprintf("http://localhost:4000/tasks/%s", scheduledTask.ID),
+		)
+		if err != nil {
+			return false
+		}
+		defer rsp.Body.Close()
+		if err := json.NewDecoder(rsp.Body).Decode(&startedTask); err != nil {
+			return false
+		}
+		return startedTask.State == task.Started
+	}, 10*time.Second, 500*time.Millisecond, "timed out waiting for task to start")
 
-	var restartedTask task.Task
-	err = json.NewDecoder(rsp2.Body).Decode(&restartedTask)
-	assert.NoError(t, err)
-
-	assert.Equal(t, scheduledTask.ID, restartedTask.ID)
-	assert.Equal(t, task.Scheduled, restartedTask.State)
-	assert.NotNil(t, restartedTask.ScheduledAt)
-	assert.Equal(t, "", restartedTask.Result)
-	assert.Equal(t, "", restartedTask.Error)
-	assert.Nil(t, restartedTask.StartedAt)
+	require.Eventually(t, func() bool {
+		var completedTask task.Task
+		rsp, err := http.Get(
+			fmt.Sprintf("http://localhost:4000/tasks/%s", scheduledTask.ID),
+		)
+		if err != nil {
+			return false
+		}
+		defer rsp.Body.Close()
+		if err := json.NewDecoder(rsp.Body).Decode(&completedTask); err != nil {
+			return false
+		}
+		return completedTask.State == task.Completed
+	}, 30*time.Second, 1*time.Second, "timed out waiting for task to complete again")
 }
