@@ -44,9 +44,25 @@ func setup() error {
 	}
 
 	fmt.Println("Waiting for services to become healthy...")
+
 	if err := waitForServices(); err != nil {
 		return err
 	}
+
+	fmt.Println("Waiting for migrations to complete...")
+
+	cmd = exec.Command("go", "run", "main.go", "migration", "--location", "postgres://tasks:tasks@localhost:5432/tasks?sslmode=disable")
+
+	cmd.Dir = "../.."
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		slog.Error("failed to run migrations", "error", err)
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	fmt.Println(" - Waiting for migrations... [OK]")
 
 	return nil
 }
