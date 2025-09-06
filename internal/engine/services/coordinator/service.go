@@ -338,6 +338,7 @@ func (s *Service) persistAndPublish(ctx context.Context, t *task.Task, defaultQu
 	if len(queueName) == 0 {
 		queueName = defaultQueueName
 	}
+
 	span.SetAttributes(attribute.String("queue", queueName))
 
 	opts := []broker.PublishOption{
