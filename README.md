@@ -13,6 +13,6 @@ The architecture is built around three primary services that communicate through
 ## Stack
 
 * **Runner (usually Docker)**: Tasks are executed in isolated containers.
-* **Message Broker (e.g., RabbitMQ)**: Provides a reliable communication channel for all inter-service messaging.
-* **Storage (WIP)**: Stores the complete state of all tasks for durability and historical access.
+* **Message Broker (e.g., NATS)**: Provides a reliable communication channel for all inter-service messaging.
+* **Storage (e.g., Postgres)**: Stores the complete state of all tasks for durability and historical access.
 * **Observability (OTEL)**: OTEL is integrated throughout the services to provide unified, end-to-end tracing, metrics, and logging.

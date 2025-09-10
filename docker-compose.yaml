@@ -30,13 +30,26 @@ services:
       retries: 5
       start_period: 30s
 
-  rabbitmq:
-    container_name: rabbitmq
-    image: rabbitmq:3.13-management
+  # rabbitmq:
+  #   container_name: rabbitmq
+  #   image: rabbitmq:3.13-management
+  #   ports:
+  #     - "15672:15672"
+  #   healthcheck:
+  #     test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
+
+  nats-server:
+    container_name: nats-server
+    image: nats:2.10-alpine
+    command: -js -m 8222
     ports:
-      - "15672:15672"
+    - "8222:8222" 
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      test: ["CMD", "wget", "--spider", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,14 +86,18 @@ services:
       - TRACES_ADDRESS=jaeger:4318
       - METRICS_ADDRESS=prometheus:9090
       - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://prometheus:9090/api/v1/otlp/v1/metrics
-      - BROKER=rabbit
-      - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      # - BROKER=rabbit
+      # - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      - BROKER=nats
+      - BROKER_LOCATION=nats://nats-server:4222
     depends_on:
       jaeger:
         condition: service_healthy
       prometheus:
         condition: service_healthy
-      rabbitmq:
+      # rabbitmq:
+      #   condition: service_healthy
+      nats-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --spider http://localhost:4002/status"]
@@ -104,8 +121,10 @@ services:
       - TRACES_ADDRESS=jaeger:4318
       - METRICS_ADDRESS=prometheus:9090
       - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://prometheus:9090/api/v1/otlp/v1/metrics
-      - BROKER=rabbit
-      - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      # - BROKER=rabbit
+      # - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      - BROKER=nats
+      - BROKER_LOCATION=nats://nats-server:4222
       - RUNNER=docker
       - RUNNER_HOST=unix:///var/run/docker.sock
     volumes:
@@ -115,7 +134,9 @@ services:
         condition: service_healthy
       prometheus:
         condition: service_healthy
-      rabbitmq:
+      # rabbitmq:
+      #   condition: service_healthy
+      nats-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --spider http://localhost:4001/status"]
@@ -139,8 +160,10 @@ services:
       - TRACES_ADDRESS=jaeger:4318
       - METRICS_ADDRESS=prometheus:9090
       - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://prometheus:9090/api/v1/otlp/v1/metrics
-      - BROKER=rabbit
-      - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      # - BROKER=rabbit
+      # - BROKER_LOCATION=amqp://guest:guest@rabbitmq:5672
+      - BROKER=nats
+      - BROKER_LOCATION=nats://nats-server:4222
       - READ_WRITER=postgres
       - READ_WRITER_LOCATION=postgres://tasks:tasks@postgres:5432/tasks?sslmode=disable
     depends_on:
@@ -148,7 +171,9 @@ services:
         condition: service_healthy
       prometheus:
         condition: service_healthy
-      rabbitmq:
+      # rabbitmq:
+      #   condition: service_healthy
+      nats-server:
         condition: service_healthy
       postgres:
         condition: service_healthy

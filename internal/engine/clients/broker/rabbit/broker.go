@@ -113,6 +113,8 @@ func (b *rabbitBroker) Subscribe(ctx context.Context, callback func(ctx context.
 
 					msgCtx, msgSpan := b.tracer.Start(extractedCtx, "Process RabbitMQ Message", trace.WithAttributes(
 						semconv.MessagingSystemKey.String("rabbitmq"),
+						semconv.MessagingOperationReceive,
+						semconv.MessagingDestinationNameKey.String(options.Queue),
 					))
 
 					func() {
@@ -268,9 +270,8 @@ func (b *rabbitBroker) Close(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-done:
+		slog.InfoContext(ctx, "graceful shutdown of rabbit client complete")
 	}
-
-	slog.InfoContext(ctx, "graceful shutdown of rabbit client complete")
 
 	return nil
 }

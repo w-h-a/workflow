@@ -68,7 +68,7 @@ func setup() error {
 }
 
 func waitForServices() error {
-	services := []string{"prometheus", "jaeger", "postgres", "rabbitmq", "streamer", "worker", "coordinator"}
+	services := []string{"prometheus", "jaeger", "postgres", "nats-server", "streamer", "worker", "coordinator"}
 
 	timeout := 120 * time.Second
 

@@ -6,12 +6,14 @@ type BrokerType string
 
 const (
 	Memory BrokerType = "memory"
+	Nats   BrokerType = "nats"
 	Rabbit BrokerType = "rabbit"
 )
 
 var (
 	BrokerTypes = map[string]BrokerType{
 		"memory": Memory,
+		"nats":   Nats,
 		"rabbit": Rabbit,
 	}
 )
