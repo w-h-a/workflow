@@ -11,6 +11,7 @@ import (
 	"github.com/w-h-a/workflow/internal/engine"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	memorybroker "github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
+	"github.com/w-h-a/workflow/internal/engine/clients/broker/nats"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/rabbit"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	memoryreadwriter "github.com/w-h-a/workflow/internal/engine/clients/readwriter/memory"
@@ -304,6 +305,10 @@ func initMetricsExporter() (metricsdk.Exporter, error) {
 
 func initBroker() broker.Broker {
 	switch config.Broker() {
+	case string(broker.Nats):
+		return nats.NewBroker(
+			broker.WithLocation(config.BrokerLocation()),
+		)
 	case string(broker.Rabbit):
 		return rabbit.NewBroker(
 			broker.WithLocation(config.BrokerLocation()),
