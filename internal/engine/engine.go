@@ -7,6 +7,7 @@ import (
 	"github.com/w-h-a/pkg/serverv2"
 	httpserver "github.com/w-h-a/pkg/serverv2/http"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/notifier"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/config"
@@ -23,11 +24,13 @@ import (
 func NewCoordinator(
 	brokerClient broker.Broker,
 	readwriterClient readwriter.ReadWriter,
+	notifierClient notifier.Notifier,
 ) (serverv2.Server, *coordinator.Service) {
 	// services
 	coordinatorService := coordinator.New(
 		brokerClient,
 		readwriterClient,
+		notifierClient,
 		map[string]int{
 			string(task.Started):   1,
 			string(task.Completed): 1,

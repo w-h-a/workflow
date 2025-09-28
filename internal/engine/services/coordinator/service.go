@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/notifier"
 	"github.com/w-h-a/workflow/internal/engine/clients/reader"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/task"
@@ -23,6 +25,7 @@ import (
 type Service struct {
 	broker     broker.Broker
 	readwriter readwriter.ReadWriter
+	notifier   notifier.Notifier
 	queues     map[string]int
 	locks      map[string]*sync.RWMutex
 	mtx        sync.RWMutex
@@ -286,6 +289,19 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 
 		s.removeTaskLock(t.ID)
 
+		event := notifier.Event{
+			Source:  "workflow-coordinator",
+			Type:    notifier.Success,
+			Title:   fmt.Sprintf("Task %s Completed Successfully", t.ID),
+			Payload: map[string]any{},
+		}
+
+		if err := s.notifier.Notify(ctx, event); err != nil {
+			child.RecordError(err)
+			child.SetStatus(codes.Error, err.Error())
+			return err
+		}
+
 		child.SetStatus(codes.Ok, "task completed event handled")
 
 		return nil
@@ -300,6 +316,21 @@ func (s *Service) handleTask(ctx context.Context, data []byte) error {
 		}
 
 		s.removeTaskLock(t.ID)
+
+		event := notifier.Event{
+			Source: "workflow-coordinator",
+			Type:   notifier.Failure,
+			Title:  fmt.Sprintf("Task %s Failed", t.ID),
+			Payload: map[string]any{
+				"error_msg": t.Error,
+			},
+		}
+
+		if err := s.notifier.Notify(ctx, event); err != nil {
+			child.RecordError(err)
+			child.SetStatus(codes.Error, err.Error())
+			return err
+		}
 
 		child.SetStatus(codes.Ok, "task failed event handled")
 
@@ -377,10 +408,11 @@ func (s *Service) removeTaskLock(id string) {
 	delete(s.locks, id)
 }
 
-func New(b broker.Broker, rw readwriter.ReadWriter, qs map[string]int) *Service {
+func New(b broker.Broker, rw readwriter.ReadWriter, n notifier.Notifier, qs map[string]int) *Service {
 	return &Service{
 		broker:     b,
 		readwriter: rw,
+		notifier:   n,
 		queues:     qs,
 		locks:      map[string]*sync.RWMutex{},
 		mtx:        sync.RWMutex{},

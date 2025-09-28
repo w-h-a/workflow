@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
+	"github.com/w-h-a/workflow/internal/engine/clients/notifier"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/task"
@@ -40,6 +41,7 @@ type config struct {
 	runnerPruneInterval time.Duration
 	readwriter          string
 	readwriterLocation  string
+	notifier            string
 }
 
 func New() {
@@ -65,6 +67,7 @@ func New() {
 			runnerPruneInterval: 24 * time.Hour,
 			readwriter:          "memory",
 			readwriterLocation:  "",
+			notifier:            "local",
 		}
 
 		env := os.Getenv("ENV")
@@ -200,6 +203,15 @@ func New() {
 		readwriterLocation := os.Getenv("READ_WRITER_LOCATION")
 		if len(readwriterLocation) > 0 {
 			instance.readwriterLocation = readwriterLocation
+		}
+
+		n := os.Getenv("NOTIFIER")
+		if len(n) > 0 {
+			if _, ok := notifier.NotifierTypes[n]; ok {
+				instance.notifier = n
+			} else {
+				panic("unsupported notifier")
+			}
 		}
 	})
 }
