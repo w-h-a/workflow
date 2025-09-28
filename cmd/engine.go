@@ -13,6 +13,8 @@ import (
 	memorybroker "github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/nats"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/rabbit"
+	"github.com/w-h-a/workflow/internal/engine/clients/notifier"
+	"github.com/w-h-a/workflow/internal/engine/clients/notifier/local"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	memoryreadwriter "github.com/w-h-a/workflow/internal/engine/clients/readwriter/memory"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter/postgres"
@@ -173,10 +175,12 @@ func StartEngine(ctx *cli.Context) error {
 	var c *coordinator.Service
 	if config.Mode() == "standalone" || config.Mode() == "coordinator" {
 		readwriterClient := initReadWriter()
+		notifierClient := initNotifier()
 
 		coordinatorServer, c = engine.NewCoordinator(
 			brokerClient,
 			readwriterClient,
+			notifierClient,
 		)
 
 		numServices += 2
@@ -337,4 +341,8 @@ func initReadWriter() readwriter.ReadWriter {
 	default:
 		return memoryreadwriter.NewReadWriter()
 	}
+}
+
+func initNotifier() notifier.Notifier {
+	return local.NewNotifier()
 }

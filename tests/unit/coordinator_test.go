@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	memorybroker "github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
+	"github.com/w-h-a/workflow/internal/engine/clients/notifier/local"
 	memorystore "github.com/w-h-a/workflow/internal/engine/clients/readwriter/memory"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
 	"github.com/w-h-a/workflow/internal/task"
@@ -28,8 +29,9 @@ func TestCoordinator_ScheduleTask_Success(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -89,8 +91,9 @@ func TestCoordinator_CancelTask_Success(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -156,8 +159,9 @@ func TestCoordinator_CancelTask_NotCancellable(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -203,8 +207,9 @@ func TestCoordinator_RestartTask_Success(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -273,8 +278,9 @@ func TestCoordinator_RestartTask_NotRestartable(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -320,8 +326,9 @@ func TestCoordinator_RetrieveTasks_Success(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -383,8 +390,9 @@ func TestCoordinator_RetrieveTask_Success(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -430,8 +438,9 @@ func TestCoordinator_RetrieveTask_NotFound(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{})
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{})
 
 	stop := make(chan struct{})
 
@@ -467,8 +476,9 @@ func TestCoordinator_HandleTask_StartedState(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{
 		string(task.Started):   1,
 		string(task.Completed): 1,
 		string(task.Failed):    1,
@@ -529,8 +539,9 @@ func TestCoordinator_HandleTask_CompletedState(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{
 		string(task.Started):   1,
 		string(task.Completed): 1,
 		string(task.Failed):    1,
@@ -593,8 +604,9 @@ func TestCoordinator_HandleTask_FailedState(t *testing.T) {
 	// Arrange
 	memoryBroker := memorybroker.NewBroker()
 	memoryStore := memorystore.NewReadWriter()
+	localNotifier := local.NewNotifier()
 
-	c := coordinator.New(memoryBroker, memoryStore, map[string]int{
+	c := coordinator.New(memoryBroker, memoryStore, localNotifier, map[string]int{
 		string(task.Started):   1,
 		string(task.Completed): 1,
 		string(task.Failed):    1,
