@@ -8,7 +8,6 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"github.com/w-h-a/pkg/serverv2"
-	"github.com/w-h-a/workflow/internal/engine"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	memorybroker "github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/nats"
@@ -21,9 +20,12 @@ import (
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner/docker"
 	"github.com/w-h-a/workflow/internal/engine/config"
+	"github.com/w-h-a/workflow/internal/engine/handlers/http"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
 	"github.com/w-h-a/workflow/internal/engine/services/streamer"
 	"github.com/w-h-a/workflow/internal/engine/services/worker"
+	"github.com/w-h-a/workflow/internal/log"
+	"github.com/w-h-a/workflow/internal/task"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/host"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
@@ -149,9 +151,14 @@ func StartEngine(ctx *cli.Context) error {
 	var streamerServer serverv2.Server
 	var s *streamer.Service
 	if config.Mode() == "standalone" || config.Mode() == "streamer" {
-		streamerServer, s = engine.NewStreamer(
+		s = streamer.New(
 			brokerClient,
+			map[string]int{
+				string(log.Queue): 1,
+			},
 		)
+
+		streamerServer = http.NewStreamerServer(s)
 
 		numServices += 2
 	}
@@ -162,10 +169,13 @@ func StartEngine(ctx *cli.Context) error {
 	if config.Mode() == "standalone" || config.Mode() == "worker" {
 		runnerClient := initRunner()
 
-		workerServer, w = engine.NewWorker(
-			brokerClient,
+		w = worker.New(
 			runnerClient,
+			brokerClient,
+			config.WorkerQueues(),
 		)
+
+		workerServer = http.NewWorkerServer(w)
 
 		numServices += 2
 	}
@@ -177,11 +187,18 @@ func StartEngine(ctx *cli.Context) error {
 		readwriterClient := initReadWriter()
 		notifierClient := initNotifier()
 
-		coordinatorServer, c = engine.NewCoordinator(
+		c = coordinator.New(
 			brokerClient,
 			readwriterClient,
 			notifierClient,
+			map[string]int{
+				string(task.Started):   1,
+				string(task.Completed): 1,
+				string(task.Failed):    1,
+			},
 		)
+
+		coordinatorServer = http.NewCoordinatorServer(c)
 
 		numServices += 2
 	}
