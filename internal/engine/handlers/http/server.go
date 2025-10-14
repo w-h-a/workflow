@@ -1,4 +1,4 @@
-package engine
+package http
 
 import (
 	"net/http"
@@ -6,38 +6,17 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/w-h-a/pkg/serverv2"
 	httpserver "github.com/w-h-a/pkg/serverv2/http"
-	"github.com/w-h-a/workflow/internal/engine/clients/broker"
-	"github.com/w-h-a/workflow/internal/engine/clients/notifier"
-	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
-	"github.com/w-h-a/workflow/internal/engine/clients/runner"
 	"github.com/w-h-a/workflow/internal/engine/config"
-	httphandlers "github.com/w-h-a/workflow/internal/engine/handlers/http"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
 	"github.com/w-h-a/workflow/internal/engine/services/streamer"
 	"github.com/w-h-a/workflow/internal/engine/services/worker"
-	"github.com/w-h-a/workflow/internal/log"
-	"github.com/w-h-a/workflow/internal/task"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 )
 
-func NewCoordinator(
-	brokerClient broker.Broker,
-	readwriterClient readwriter.ReadWriter,
-	notifierClient notifier.Notifier,
-) (serverv2.Server, *coordinator.Service) {
-	// services
-	coordinatorService := coordinator.New(
-		brokerClient,
-		readwriterClient,
-		notifierClient,
-		map[string]int{
-			string(task.Started):   1,
-			string(task.Completed): 1,
-			string(task.Failed):    1,
-		},
-	)
-
+func NewCoordinatorServer(
+	coordinatorService *coordinator.Service,
+) serverv2.Server {
 	// base server options
 	opts := []serverv2.ServerOption{
 		serverv2.ServerWithNamespace(config.Env()),
@@ -48,10 +27,10 @@ func NewCoordinator(
 	// create http router
 	router := mux.NewRouter()
 
-	httpStatus := httphandlers.NewStatusHandler(coordinatorService)
+	httpStatus := NewStatusHandler(coordinatorService)
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
-	httpTasks := httphandlers.NewTasksHandler(coordinatorService)
+	httpTasks := NewTasksHandler(coordinatorService)
 	router.Methods(http.MethodGet).Path("/tasks").HandlerFunc(httpTasks.GetTasks)
 	router.Methods(http.MethodGet).Path("/tasks/{id}").HandlerFunc(httpTasks.GetOneTask)
 	router.Methods(http.MethodPut).Path("/tasks/cancel/{id}").HandlerFunc(httpTasks.PutCancelTask)
@@ -78,20 +57,12 @@ func NewCoordinator(
 
 	httpServer.Handle(handler)
 
-	return httpServer, coordinatorService
+	return httpServer
 }
 
-func NewWorker(
-	brokerClient broker.Broker,
-	runnerClient runner.Runner,
-) (serverv2.Server, *worker.Service) {
-	// services
-	workerService := worker.New(
-		runnerClient,
-		brokerClient,
-		config.WorkerQueues(),
-	)
-
+func NewWorkerServer(
+	workerService *worker.Service,
+) serverv2.Server {
 	// base server options
 	opts := []serverv2.ServerOption{
 		serverv2.ServerWithNamespace(config.Env()),
@@ -102,7 +73,7 @@ func NewWorker(
 	// create http router
 	router := mux.NewRouter()
 
-	httpStatus := httphandlers.NewStatusHandler(workerService)
+	httpStatus := NewStatusHandler(workerService)
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
 	// create http server
@@ -125,20 +96,12 @@ func NewWorker(
 
 	httpServer.Handle(handler)
 
-	return httpServer, workerService
+	return httpServer
 }
 
-func NewStreamer(
-	brokerClient broker.Broker,
-) (serverv2.Server, *streamer.Service) {
-	// services
-	streamerService := streamer.New(
-		brokerClient,
-		map[string]int{
-			string(log.Queue): 1,
-		},
-	)
-
+func NewStreamerServer(
+	streamerService *streamer.Service,
+) serverv2.Server {
 	// base server options
 	opts := []serverv2.ServerOption{
 		serverv2.ServerWithNamespace(config.Env()),
@@ -149,10 +112,10 @@ func NewStreamer(
 	// create http router
 	router := mux.NewRouter()
 
-	httpStatus := httphandlers.NewStatusHandler(streamerService)
+	httpStatus := NewStatusHandler(streamerService)
 	router.Methods(http.MethodGet).Path("/status").HandlerFunc(httpStatus.GetStatus)
 
-	httpLogs := httphandlers.NewLogsHandler(streamerService)
+	httpLogs := NewLogsHandler(streamerService)
 	router.Methods(http.MethodGet).Path("/logs/{id}").HandlerFunc(httpLogs.StreamLogs)
 
 	// create http server
@@ -175,5 +138,5 @@ func NewStreamer(
 
 	httpServer.Handle(handler)
 
-	return httpServer, streamerService
+	return httpServer
 }
