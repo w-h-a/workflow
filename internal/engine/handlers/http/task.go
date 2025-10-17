@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/w-h-a/workflow/api/task"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
-	"github.com/w-h-a/workflow/internal/task"
 )
 
 type Tasks struct {

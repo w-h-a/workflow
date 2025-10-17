@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/w-h-a/workflow/api/log"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
-	"github.com/w-h-a/workflow/internal/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"

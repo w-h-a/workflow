@@ -12,12 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/w-h-a/workflow/api/task"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	memorybroker "github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
 	"github.com/w-h-a/workflow/internal/engine/clients/notifier/local"
 	memorystore "github.com/w-h-a/workflow/internal/engine/clients/readwriter/memory"
 	"github.com/w-h-a/workflow/internal/engine/services/coordinator"
-	"github.com/w-h-a/workflow/internal/task"
 )
 
 func TestCoordinator_ScheduleTask_Success(t *testing.T) {

@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/w-h-a/workflow/api/task"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/notifier"
 	"github.com/w-h-a/workflow/internal/engine/clients/readwriter"
 	"github.com/w-h-a/workflow/internal/engine/clients/runner"
-	"github.com/w-h-a/workflow/internal/task"
 )
 
 var (

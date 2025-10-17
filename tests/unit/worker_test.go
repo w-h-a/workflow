@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/w-h-a/workflow/api/task"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
 	mockrunner "github.com/w-h-a/workflow/internal/engine/clients/runner/mock"
 	"github.com/w-h-a/workflow/internal/engine/services/worker"
-	"github.com/w-h-a/workflow/internal/task"
 )
 
 func TestWorker_HandleTask_Scheduled_Success(t *testing.T) {

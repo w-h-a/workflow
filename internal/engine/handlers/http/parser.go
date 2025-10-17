@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/w-h-a/workflow/internal/task"
+	"github.com/w-h-a/workflow/api/task"
 )
 
 const (
