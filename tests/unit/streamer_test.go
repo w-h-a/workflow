@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/w-h-a/workflow/api/log"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker/memory"
 	"github.com/w-h-a/workflow/internal/engine/services/streamer"
-	"github.com/w-h-a/workflow/internal/log"
 )
 
 func TestStreamer_StreamLogs_Success(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/w-h-a/workflow/internal/task"
+	"github.com/w-h-a/workflow/api/task"
 )
 
 func TestWorker_TaskExecution_EndToEnd(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/w-h-a/workflow/internal/task"
+	"github.com/w-h-a/workflow/api/task"
 )
 
 func TestStreamer_StreamLogs_EndToEnd(t *testing.T) {

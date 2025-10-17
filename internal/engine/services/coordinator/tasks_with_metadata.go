@@ -1,6 +1,6 @@
 package coordinator
 
-import "github.com/w-h-a/workflow/internal/task"
+import "github.com/w-h-a/workflow/api/task"
 
 type TasksWithMetadata struct {
 	Tasks      []*task.Task `json:"tasks"`
