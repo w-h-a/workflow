@@ -3,11 +3,14 @@ package cmd
 import (
 	"context"
 	"log/slog"
+	gohttp "net/http"
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/urfave/cli/v2"
 	"github.com/w-h-a/pkg/serverv2"
+	httpserver "github.com/w-h-a/pkg/serverv2/http"
 	"github.com/w-h-a/workflow/api/log"
 	"github.com/w-h-a/workflow/api/task"
 	"github.com/w-h-a/workflow/internal/engine/clients/broker"
@@ -28,6 +31,7 @@ import (
 	"github.com/w-h-a/workflow/internal/engine/services/worker"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/host"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -158,7 +162,7 @@ func StartEngine(ctx *cli.Context) error {
 			},
 		)
 
-		streamerServer = http.NewStreamerServer(s)
+		streamerServer = initStreamerServer(s)
 
 		numServices += 2
 	}
@@ -175,7 +179,7 @@ func StartEngine(ctx *cli.Context) error {
 			config.WorkerQueues(),
 		)
 
-		workerServer = http.NewWorkerServer(w)
+		workerServer = initWorkerServer(w)
 
 		numServices += 2
 	}
@@ -198,7 +202,7 @@ func StartEngine(ctx *cli.Context) error {
 			},
 		)
 
-		coordinatorServer = http.NewCoordinatorServer(c)
+		coordinatorServer = initCoordinatorServer(c)
 
 		numServices += 2
 	}
@@ -362,4 +366,131 @@ func initReadWriter() readwriter.ReadWriter {
 
 func initNotifier() notifier.Notifier {
 	return local.NewNotifier()
+}
+
+func initCoordinatorServer(
+	coordinatorService *coordinator.Service,
+) serverv2.Server {
+	// base server options
+	opts := []serverv2.ServerOption{
+		serverv2.ServerWithNamespace(config.Env()),
+		serverv2.ServerWithName(config.Name()),
+		serverv2.ServerWithVersion(config.Version()),
+	}
+
+	// create http router
+	router := mux.NewRouter()
+
+	httpStatus := http.NewStatusHandler(coordinatorService)
+	router.Methods("GET").Path("/status").HandlerFunc(httpStatus.GetStatus)
+
+	httpTasks := http.NewTasksHandler(coordinatorService)
+	router.Methods("GET").Path("/tasks").HandlerFunc(httpTasks.GetTasks)
+	router.Methods("GET").Path("/tasks/{id}").HandlerFunc(httpTasks.GetOneTask)
+	router.Methods("PUT").Path("/tasks/cancel/{id}").HandlerFunc(httpTasks.PutCancelTask)
+	router.Methods("PUT").Path("/tasks/restart/{id}").HandlerFunc(httpTasks.PutRestartTask)
+	router.Methods("POST").Path("/tasks").HandlerFunc(httpTasks.PostTask)
+
+	// create http server
+	httpOpts := []serverv2.ServerOption{
+		serverv2.ServerWithAddress(config.CoordinatorHttp()),
+	}
+
+	httpOpts = append(httpOpts, opts...)
+
+	httpServer := httpserver.NewServer(httpOpts...)
+
+	handler := otelhttp.NewHandler(
+		router,
+		"",
+		otelhttp.WithSpanNameFormatter(func(operation string, r *gohttp.Request) string { return r.URL.Path }),
+		otelhttp.WithTracerProvider(otel.GetTracerProvider()),
+		otelhttp.WithPropagators(otel.GetTextMapPropagator()),
+		otelhttp.WithFilter(func(r *gohttp.Request) bool { return r.URL.Path != "/status" }),
+	)
+
+	httpServer.Handle(handler)
+
+	return httpServer
+}
+
+func initWorkerServer(
+	workerService *worker.Service,
+) serverv2.Server {
+	// base server options
+	opts := []serverv2.ServerOption{
+		serverv2.ServerWithNamespace(config.Env()),
+		serverv2.ServerWithName(config.Name()),
+		serverv2.ServerWithVersion(config.Version()),
+	}
+
+	// create http router
+	router := mux.NewRouter()
+
+	httpStatus := http.NewStatusHandler(workerService)
+	router.Methods("GET").Path("/status").HandlerFunc(httpStatus.GetStatus)
+
+	// create http server
+	httpOpts := []serverv2.ServerOption{
+		serverv2.ServerWithAddress(config.WorkerHttp()),
+	}
+
+	httpOpts = append(httpOpts, opts...)
+
+	httpServer := httpserver.NewServer(httpOpts...)
+
+	handler := otelhttp.NewHandler(
+		router,
+		"",
+		otelhttp.WithSpanNameFormatter(func(operation string, r *gohttp.Request) string { return r.URL.Path }),
+		otelhttp.WithTracerProvider(otel.GetTracerProvider()),
+		otelhttp.WithPropagators(otel.GetTextMapPropagator()),
+		otelhttp.WithFilter(func(r *gohttp.Request) bool { return r.URL.Path != "/status" }),
+	)
+
+	httpServer.Handle(handler)
+
+	return httpServer
+}
+
+func initStreamerServer(
+	streamerService *streamer.Service,
+) serverv2.Server {
+	// base server options
+	opts := []serverv2.ServerOption{
+		serverv2.ServerWithNamespace(config.Env()),
+		serverv2.ServerWithName(config.Name()),
+		serverv2.ServerWithVersion(config.Version()),
+	}
+
+	// create http router
+	router := mux.NewRouter()
+
+	httpStatus := http.NewStatusHandler(streamerService)
+	router.Methods("GET").Path("/status").HandlerFunc(httpStatus.GetStatus)
+
+	httpLogs := http.NewLogsHandler(streamerService)
+	router.Methods("GET").Path("/logs/{id}").HandlerFunc(httpLogs.StreamLogs)
+
+	// create http server
+	httpOpts := []serverv2.ServerOption{
+		serverv2.ServerWithAddress(config.StreamerHttp()),
+	}
+
+	httpOpts = append(httpOpts, opts...)
+
+	httpServer := httpserver.NewServer(httpOpts...)
+
+	handler := otelhttp.NewHandler(
+		router,
+		"",
+		otelhttp.WithSpanNameFormatter(func(operation string, r *gohttp.Request) string { return r.URL.Path }),
+		otelhttp.WithTracerProvider(otel.GetTracerProvider()),
+		otelhttp.WithPropagators(otel.GetTextMapPropagator()),
+		otelhttp.WithFilter(func(r *gohttp.Request) bool { return r.URL.Path != "/status" }),
+	)
+
+	httpServer.Handle(handler)
+
+	return httpServer
 }
